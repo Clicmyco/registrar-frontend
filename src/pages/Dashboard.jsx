@@ -1,0 +1,462 @@
+// src/pages/Dashboard.jsx
+import { useState, useEffect } from "react";
+import {
+  getAllCourses,
+  getMyEnrollments,
+  enrollInCourse,
+  dropCourse,
+} from "../services/api";
+
+const gradePointsMap = {
+  A: 4.0,
+  "A-": 3.75,
+  "B+": 3.5,
+  B: 3.0,
+  "C+": 2.5,
+  C: 2.0,
+  D: 1.0,
+  F: 0.0,
+};
+
+export default function Dashboard({ user, navigate }) {
+  const [courses, setCourses] = useState([]);
+  const [enrollments, setEnrollments] = useState([]);
+  // Stores simulated target grades locally per courseId (defaults to "A")
+  const [simulatedGrades, setSimulatedGrades] = useState({});
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState(null);
+  const [feedback, setFeedback] = useState(null); // { type: 'success' | 'error', text: string }
+
+  const isAdmin = user?.roles?.includes("ROLE_ADMIN");
+
+  const loadDashboardData = async () => {
+    if (!user) return;
+    setIsLoading(true);
+    try {
+      if (isAdmin) {
+        const catalog = await getAllCourses();
+        setCourses(catalog);
+        setEnrollments([]);
+      } else {
+        const [catalog, myEnrollments] = await Promise.all([
+          getAllCourses(),
+          getMyEnrollments(),
+        ]);
+        setCourses(catalog);
+        setEnrollments(myEnrollments);
+      }
+    } catch (err) {
+      setFeedback({ type: "error", text: err.message || "Failed to load registrar data." });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDashboardData();
+  }, [user]);
+
+  const handleEnroll = async (courseId) => {
+    setFeedback(null);
+    setActionLoadingId(courseId);
+    try {
+      const message = await enrollInCourse(courseId);
+      setFeedback({ type: "success", text: message });
+      await loadDashboardData();
+    } catch (err) {
+      setFeedback({ type: "error", text: err.message });
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleDrop = async (enrollmentId, courseId) => {
+    setFeedback(null);
+    setActionLoadingId(courseId);
+    try {
+      const message = await dropCourse(enrollmentId);
+      setFeedback({ type: "success", text: message });
+      await loadDashboardData();
+    } catch (err) {
+      setFeedback({ type: "error", text: err.message });
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const updateCourseGrade = (courseId, newGrade) => {
+    setSimulatedGrades((prev) => ({ ...prev, [courseId]: newGrade }));
+  };
+
+  // --- GUARD: Prompt guests to sign in ---
+  if (!user) {
+    return (
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="max-w-lg mx-auto bg-white rounded-2xl border border-slate-200 p-8 shadow-sm text-center space-y-4">
+          <div className="w-12 h-12 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center mx-auto text-xl">
+            <i className="fa-solid fa-lock"></i>
+          </div>
+          <h2 className="text-xl font-bold text-slate-900">Sign In Required</h2>
+          <p className="text-sm text-slate-600">
+            Please sign in with your Student or Admin account to access live course registration and enrollment records.
+          </p>
+          <button
+            onClick={() => navigate("auth-preview")}
+            className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition shadow-sm"
+          >
+            Go to Portal Sign-In
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  // --- MATH CALCULATIONS (Official + Simulated GPA) ---
+  const activeEnrollments = enrollments.filter((e) => e.status === "ENROLLED");
+  const totalCredits = activeEnrollments.reduce((sum, item) => sum + item.credits, 0);
+
+  // 1. Official GPA (only courses with a recorded Registrar grade)
+  const gradedEnrollments = activeEnrollments.filter(
+    (item) => item.grade && gradePointsMap[item.grade] !== undefined
+  );
+  const gradedCredits = gradedEnrollments.reduce((sum, item) => sum + item.credits, 0);
+  const officialQualityPoints = gradedEnrollments.reduce(
+    (sum, item) => sum + gradePointsMap[item.grade] * item.credits,
+    0
+  );
+  const officialGpa =
+    gradedCredits > 0 ? (officialQualityPoints / gradedCredits).toFixed(2) : "—";
+
+  // 2. Simulated Term GPA (uses Official Grade if locked in, otherwise simulated dropdown)
+  let totalQualityPoints = 0;
+  activeEnrollments.forEach((item) => {
+    const effectiveGrade =
+      item.grade && gradePointsMap[item.grade] !== undefined
+        ? item.grade
+        : simulatedGrades[item.courseId] || "A";
+    const gp = gradePointsMap[effectiveGrade] ?? 0;
+    totalQualityPoints += gp * item.credits;
+  });
+
+  const simulatedGpa =
+    totalCredits > 0 ? (totalQualityPoints / totalCredits).toFixed(2) : "0.00";
+
+  const displayName = user.fullName || user.email;
+  const nameParts = displayName.trim().split(/\s+/);
+  const initials =
+    nameParts.length >= 2
+      ? (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase()
+      : displayName.slice(0, 2).toUpperCase();
+
+  return (
+    <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <section className="space-y-6">
+
+        {/* Profile Summary Header */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-bold text-xl">
+              {initials}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-slate-900">{displayName}</h2>
+                <span
+                  className={`px-2 py-0.5 text-xs font-semibold rounded ${
+                    isAdmin
+                      ? "bg-amber-100 text-amber-800"
+                      : "bg-emerald-100 text-emerald-800"
+                  }`}
+                >
+                  {isAdmin ? "Registrar Admin" : "Active Student"}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {user.email} • B.Sc. Computer Science
+              </p>
+            </div>
+          </div>
+
+          {!isAdmin && (
+            <div className="flex flex-wrap gap-3 border-t md:border-t-0 pt-3 md:pt-0 border-slate-100">
+              <div className="bg-slate-50 px-4 py-2 rounded-xl border border-slate-200">
+                <div className="text-xs text-slate-500">Enrolled Credits</div>
+                <div className="text-lg font-extrabold text-indigo-700">
+                  {totalCredits} / 19 Cr
+                </div>
+              </div>
+              <div className="bg-indigo-50/70 px-4 py-2 rounded-xl border border-indigo-200">
+                <div className="text-xs text-indigo-700 font-medium">Official GPA</div>
+                <div className="text-lg font-extrabold text-indigo-900">{officialGpa}</div>
+              </div>
+              <div className="bg-slate-50 px-4 py-2 rounded-xl border border-slate-200">
+                <div className="text-xs text-slate-500">Simulated Term GPA</div>
+                <div className="text-lg font-extrabold text-emerald-700">{simulatedGpa}</div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Live Feedback Banner */}
+        {feedback && (
+          <div
+            className={`p-3.5 rounded-xl border text-xs font-medium flex items-center justify-between ${
+              feedback.type === "error"
+                ? "bg-rose-50 border-rose-200 text-rose-800"
+                : "bg-emerald-50 border-emerald-200 text-emerald-800"
+            }`}
+          >
+            <span>
+              <i
+                className={`fa-solid ${
+                  feedback.type === "error" ? "fa-circle-exclamation" : "fa-circle-check"
+                } mr-2`}
+              ></i>
+              {feedback.text}
+            </span>
+            <button
+              onClick={() => setFeedback(null)}
+              className="text-slate-500 hover:text-slate-800 font-bold ml-4"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {/* Admin Notice */}
+        {isAdmin && (
+          <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
+            <i className="fa-solid fa-user-shield mr-2"></i>
+            You are signed in as an <strong>Admin</strong>. You can view the live course catalog below. Student enrollment actions are restricted to <code className="bg-amber-100 px-1 rounded">ROLE_STUDENT</code> accounts.
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+          {/* Course Catalog & Registration Table (7 Columns) */}
+          <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  Semester Course Registration
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Live course catalog loaded from Spring Boot
+                </p>
+              </div>
+              <button
+                onClick={loadDashboardData}
+                disabled={isLoading}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-indigo-600 hover:bg-indigo-50 transition"
+              >
+                <i className="fa-solid fa-rotate mr-1"></i>Refresh
+              </button>
+            </div>
+
+            {isLoading ? (
+              <div className="py-10 text-center text-xs text-slate-500">
+                Loading courses from server...
+              </div>
+            ) : courses.length === 0 ? (
+              <div className="py-10 text-center text-xs text-slate-500">
+                No courses found in the database yet. Sign in as an Admin to create one!
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-xs uppercase text-slate-500">
+                      <th className="py-2.5 px-2">Code</th>
+                      <th className="py-2.5 px-2">Course Title</th>
+                      <th className="py-2.5 px-2 text-center">Cr.</th>
+                      <th className="py-2.5 px-2 text-center">Seats</th>
+                      {!isAdmin && <th className="py-2.5 px-2 text-center">Grade</th>}
+                      <th className="py-2.5 px-2 text-right">Status / Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-sm">
+                    {courses.map((course) => {
+                      const enrollment = enrollments.find((e) => e.courseId === course.id);
+                      const isBusy = actionLoadingId === course.id;
+                      const enrolledCount = course.enrolledCount ?? 0;
+                      const maxCapacity = course.maxCapacity ?? 30;
+                      const isFull = enrolledCount >= maxCapacity;
+                      return (
+                        <tr key={course.id} className="hover:bg-slate-50 transition">
+                          <td className="py-3 px-2 font-mono text-xs font-semibold text-slate-700">
+                            {course.courseCode}
+                          </td>
+                          <td className="py-3 px-2 text-xs sm:text-sm font-medium text-slate-900">
+                            {course.title}
+                          </td>
+                          <td className="py-3 px-2 text-center text-xs font-semibold text-slate-600">
+                            {course.credits}
+                          </td>
+                          <td className="py-3 px-2 text-center text-xs font-semibold">
+                         <span
+                           className={`px-2 py-0.5 rounded-full ${
+                             isFull
+                               ? "bg-rose-100 text-rose-700"
+                               : "bg-slate-100 text-slate-700"
+                           }`}
+                         >
+                           {enrolledCount} / {maxCapacity}
+                         </span>
+                       </td>
+                          {!isAdmin && (
+                            <td className="py-3 px-2 text-center">
+                              {enrollment?.status === "ENROLLED" ? (
+                                enrollment.grade ? (
+                                  <span className="px-2 py-0.5 rounded-md text-xs font-bold bg-indigo-100 text-indigo-800">
+                                    {enrollment.grade}
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-slate-400 italic">In Progress</span>
+                                )
+                              ) : (
+                                <span className="text-xs text-slate-300">—</span>
+                              )}
+                            </td>
+                          )}
+                          <td className="py-3 px-2 text-right">
+                            {isAdmin ? (
+                              <span className="text-xs text-slate-400">Catalog Item</span>
+                            ) : enrollment?.status === "ENROLLED" ? (
+                              <button
+                                disabled={isBusy}
+                                onClick={() => handleDrop(enrollment.enrollmentId, course.id)}
+                                className="px-3 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 disabled:opacity-50 transition"
+                              >
+                                {isBusy ? "Dropping..." : "Drop"}
+                              </button>
+                           ) : enrollment?.status === "DROPPED" ? (
+                           isFull ? (
+                             <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                               Full
+                             </span>
+                           ) : (
+                             <button
+                               disabled={isBusy}
+                               onClick={() => handleEnroll(course.id)}
+                               className="px-3 py-1 rounded-lg text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 disabled:opacity-50 transition"
+                             >
+                               {isBusy ? "Re-Enrolling..." : "Re-Enroll"}
+                             </button>
+                           )
+                         ) : isFull ? (
+                           <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                             Full
+                           </span>
+                         ) : (
+                           <button
+                             disabled={isBusy}
+                             onClick={() => handleEnroll(course.id)}
+                             className="px-3 py-1 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition"
+                           >
+                             {isBusy ? "Enrolling..." : "Add Course"}
+                           </button>
+                         )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Official Grades & Interactive GPA Simulator Panel (5 Columns) */}
+          <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4 flex flex-col justify-between">
+            <div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  Official Grades &amp; GPA Simulator
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Official Registrar grades lock in automatically; adjust in-progress courses to project your term GPA
+                </p>
+              </div>
+
+              <div className="space-y-3 mt-4">
+                {activeEnrollments.length === 0 ? (
+                  <div className="p-4 rounded-xl bg-slate-50 text-xs text-slate-500 text-center">
+                    No active enrolled courses. Enroll in a course on the left to track grades.
+                  </div>
+                ) : (
+                  activeEnrollments.map((item) => {
+                    const hasOfficialGrade =
+                      item.grade && gradePointsMap[item.grade] !== undefined;
+                    const currentGrade = hasOfficialGrade
+                      ? item.grade
+                      : simulatedGrades[item.courseId] || "A";
+
+                    return (
+                      <div
+                        key={item.enrollmentId}
+                        className={`p-3 rounded-xl border flex items-center justify-between gap-2 ${
+                          hasOfficialGrade
+                            ? "bg-indigo-50/50 border-indigo-200"
+                            : "bg-slate-50 border-slate-200"
+                        }`}
+                      >
+                        <div>
+                          <div className="text-xs font-bold text-slate-800">
+                            {item.courseCode} — {item.courseTitle}
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            {item.credits} Credit Hours •{" "}
+                            {hasOfficialGrade ? (
+                              <span className="text-indigo-700 font-semibold">Official</span>
+                            ) : (
+                              <span>Simulated</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {hasOfficialGrade ? (
+                          <span className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-xs font-bold">
+                            {item.grade} ({gradePointsMap[item.grade].toFixed(2)})
+                          </span>
+                        ) : (
+                          <select
+                            value={currentGrade}
+                            onChange={(e) => updateCourseGrade(item.courseId, e.target.value)}
+                            className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-indigo-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          >
+                            {Object.keys(gradePointsMap).map((gradeLetter) => (
+                              <option key={gradeLetter} value={gradeLetter}>
+                                {gradeLetter} ({gradePointsMap[gradeLetter].toFixed(2)})
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            <div className="pt-3 mt-4 border-t border-slate-200 space-y-1.5 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-slate-600">Official Quality Points:</span>
+                <span className="font-bold text-indigo-900">
+                  {officialQualityPoints.toFixed(2)} pts ({gradedCredits} Cr)
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-slate-600">Projected Quality Points:</span>
+                <span className="font-bold text-slate-900">
+                  {totalQualityPoints.toFixed(2)} pts ({totalCredits} Cr)
+                </span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+    </main>
+  );
+}
