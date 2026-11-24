@@ -149,3 +149,19 @@ export function assignGrade(enrollmentId, grade) {
     body: JSON.stringify({ grade: grade || null }),
   });
 }
+
+// --- Public Endpoints (No Login Required) ---
+export function getPublicStats() {
+  return apiRequest("/public/stats", { method: "GET" });
+}
+
+export function getPublicPrograms({ search = "", degreeType = "" } = {}) {
+  const params = new URLSearchParams();
+  if (search.trim()) params.append("search", search.trim());
+  if (degreeType && degreeType !== "All") params.append("degreeType", degreeType);
+
+  const query = params.toString();
+  return apiRequest(`/public/programs${query ? `?${query}` : ""}`, {
+    method: "GET",
+  });
+}

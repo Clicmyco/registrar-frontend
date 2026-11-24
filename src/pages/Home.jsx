@@ -1,6 +1,21 @@
 // src/pages/Home.jsx
 
+
+import { useState, useEffect } from "react";
+import { getPublicStats } from "../services/api";
+
+
+
+
+
 export default function Home({navigate}) {
+  const [stats, setStats] = useState(null);
+
+useEffect(() => {
+  getPublicStats()
+    .then((data) => setStats(data))
+    .catch(() => setStats(null));
+}, []);
   return (
     <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
       
@@ -46,45 +61,41 @@ export default function Home({navigate}) {
 
 
         {/* 2. Institutional Metrics Bar */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          
-          {/* Card 1 */}
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <div className="text-indigo-600 text-sm font-semibold mb-1">
-              <i className="fa-solid fa-award mr-1.5"></i>Track Record
-            </div>
-            <div className="text-3xl font-extrabold text-indigo-600">25+</div>
-            <div className="text-xs text-slate-500 mt-1">Years of Excellence (Est. 1999)</div>
-          </div>
+        <div className="space-y-8">
+      {/* Your existing Hero / Welcome banner stays right here */}
 
-          {/* Card 2 */}
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <div className="text-emerald-600 text-sm font-semibold mb-1">
-              <i className="fa-solid fa-user-graduate mr-1.5"></i>Alumni Network
-            </div>
-            <div className="text-3xl font-extrabold text-slate-900">5,000+</div>
-            <div className="text-xs text-slate-500 mt-1">Graduates in Computing & Tech</div>
+      {/* Live Institutional Stats Strip */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+          <div className="text-xs font-semibold uppercase text-slate-500">
+            Degree Programs
           </div>
-
-          {/* Card 3 */}
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <div className="text-amber-600 text-sm font-semibold mb-1">
-              <i className="fa-solid fa-handshake mr-1.5"></i>Collaborations
-            </div>
-            <div className="text-3xl font-extrabold text-slate-900">50+</div>
-            <div className="text-xs text-slate-500 mt-1">Industry & Tech Partners</div>
+          <div className="text-3xl font-extrabold text-indigo-700 mt-1">
+            {stats ? stats.totalPrograms : "—"}
           </div>
-
-          {/* Card 4 */}
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <div className="text-blue-600 text-sm font-semibold mb-1">
-              <i className="fa-solid fa-briefcase mr-1.5"></i>Career Outcomes
-            </div>
-            <div className="text-3xl font-extrabold text-slate-900">95%</div>
-            <div className="text-xs text-slate-500 mt-1">Graduate Employment Rate</div>
-          </div>
-
         </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+          <div className="text-xs font-semibold uppercase text-slate-500">
+            Active Courses
+          </div>
+          <div className="text-3xl font-extrabold text-indigo-700 mt-1">
+            {stats ? stats.totalCourses : "—"}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+          <div className="text-xs font-semibold uppercase text-slate-500">
+            Total Enrollments
+          </div>
+          <div className="text-3xl font-extrabold text-indigo-700 mt-1">
+            {stats ? stats.totalEnrollments : "—"}
+          </div>
+        </div>
+      </div>
+
+     
+    </div>
 {/* 3. Quick Portal Modules & Academic Calendar */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
