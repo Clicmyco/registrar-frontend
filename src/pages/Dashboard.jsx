@@ -7,6 +7,8 @@ import {
   dropCourse,
 } from "../services/api";
 
+import OfficialTranscript from "../components/OfficialTranscript";
+
 const gradePointsMap = {
   A: 4.0,
   "A-": 3.75,
@@ -29,6 +31,8 @@ export default function Dashboard({ user, navigate }) {
   const [enrollments, setEnrollments] = useState([]);
   // Stores simulated target grades locally per courseId (defaults to "A")
   const [simulatedGrades, setSimulatedGrades] = useState({});
+  const [showTranscript, setShowTranscript] = useState(false);
+
 
   const [isLoading, setIsLoading] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState(null);
@@ -123,6 +127,8 @@ export default function Dashboard({ user, navigate }) {
   const activeEnrollments = enrollments.filter((e) => e.status === "ENROLLED");
   const totalCredits = activeEnrollments.reduce((sum, item) => sum + item.credits, 0);
 
+  
+
   // 1. Official GPA (only courses with a recorded Registrar grade)
   const gradedEnrollments = activeEnrollments.filter(
     (item) => item.grade && gradePointsMap[item.grade] !== undefined
@@ -198,8 +204,19 @@ export default function Dashboard({ user, navigate }) {
                 <div className="text-lg font-extrabold text-indigo-900">{officialGpa}</div>
               </div>
               <div className="bg-slate-50 px-4 py-2 rounded-xl border border-slate-200">
-                <div className="text-xs text-slate-500">Simulated Term GPA</div>
+                <div className="text-xs text-slate-500">Simulated Term GPA
+                </div>
+                
                 <div className="text-lg font-extrabold text-emerald-700">{simulatedGpa}</div>
+                
+                <button
+                     onClick={() => setShowTranscript((prev) => !prev)}
+                     className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition shadow-sm self-center"
+                     >
+                     <i className="fa-solid fa-file-lines mr-1.5"></i>
+                        {showTranscript ? "Course Registration" : "Official Transcript"}
+                     </button>
+
               </div>
             </div>
           )}
@@ -239,7 +256,11 @@ export default function Dashboard({ user, navigate }) {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+     {showTranscript && !isAdmin ? (
+  <OfficialTranscript onBack={() => setShowTranscript(false)} />
+) : (
+
+<div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
           {/* Course Catalog & Registration Table (7 Columns) */}
           <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
@@ -339,23 +360,22 @@ export default function Dashboard({ user, navigate }) {
                             </td>
                           )}
                                         <td className="py-3 px-2 text-right">
-  {isAdmin ? (
-    <span className="text-xs text-slate-400">Catalog Item</span>
-  ) : enrollment?.status === "ENROLLED" ? (
-    <div className="inline-flex items-center gap-2">
-      <span
-        className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${statusBadge.ENROLLED}`}
-      >
-        Enrolled
-      </span>
-      <button
-        disabled={isBusy}
-        onClick={() => handleDrop(enrollment.enrollmentId, course.id)}
-        className="px-3 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 disabled:opacity-50 transition"
-      >
-        {isBusy ? "Dropping..." : "Drop"}
-      </button>
-    </div>
+                               {isAdmin ? (
+                              <span className="text-xs text-slate-400">Catalog Item</span>
+                           ) : enrollment?.status === "ENROLLED" ? (
+                         <div className="inline-flex items-center gap-2">
+                           <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${statusBadge.ENROLLED}`}
+                                             >
+                                                 Enrolled
+                          </span>
+                          <button
+                              disabled={isBusy}
+                              onClick={() => handleDrop(enrollment.enrollmentId, course.id)}
+                             className="px-3 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 disabled:opacity-50 transition"
+                                      >
+                                {isBusy ? "Dropping..." : "Drop"}
+                                 </button>
+                     </div>
   ) : enrollment?.status === "PENDING_APPROVAL" ? (
     <div className="inline-flex items-center gap-2">
       <span
@@ -416,7 +436,7 @@ export default function Dashboard({ user, navigate }) {
       {isBusy ? "Requesting..." : "Request Course"}
     </button>
   )}
-</td>
+ </td>
                         </tr>
                       );
                     })}
@@ -515,6 +535,7 @@ export default function Dashboard({ user, navigate }) {
           </div>
 
         </div>
+)}
       </section>
     </main>
   );

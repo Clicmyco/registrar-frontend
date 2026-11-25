@@ -199,3 +199,8 @@ export function reviewEnrollment(enrollmentId, approve, advisorNote = "") {
     body: JSON.stringify({ approve, advisorNote }),
   });
 }
+
+// --- Official Transcript ---
+export function getMyTranscript() {
+  return apiRequest("/enrollments/transcript", { method: "GET" });
+}
