@@ -301,7 +301,13 @@ export default function Dashboard({ user, navigate }) {
                                Advisor note:{" "}
                               <span className="font-medium text-slate-700">{enrollment.advisorNote}</span>
                              </p>
+                            
                                )}
+                                {course.prerequisiteCourseCode && (
+                              <span className="inline-block mt-0.5 px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-semibold">
+                                  Prereq: {course.prerequisiteCourseCode}
+                                                   </span>
+                                            )}
                          </td>
                           <td className="py-3 px-2 text-center text-xs font-semibold text-slate-600">
                             {course.credits}

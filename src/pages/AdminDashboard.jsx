@@ -14,7 +14,7 @@ export default function AdminDashboard({ user, navigate }) {
   const [credits, setCredits] = useState("3");
   const [maxCapacity, setMaxCapacity] = useState("30");
   const [isSubmitting, setIsSubmitting] = useState(false);
-
+  const [prerequisiteCourseId, setPrerequisiteCourseId] = useState("");
   // Roster Inspector State
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [roster, setRoster] = useState([]);
@@ -67,11 +67,12 @@ const roleLabel = isAdmin
     setIsSubmitting(true);
     try {
       await createCourse({
-        courseCode: courseCode.trim().toUpperCase(),
-        title: title.trim(),
-        credits: Number(credits),
-        maxCapacity: Number(maxCapacity) || 30,
-      });
+  courseCode: courseCode.trim().toUpperCase(),
+  title: title.trim(),
+  credits: Number(credits),
+  maxCapacity: Number(maxCapacity) || 30,
+  prerequisiteCourseId: prerequisiteCourseId ? Number(prerequisiteCourseId) : null,
+});
       setFeedback({
         type: "success",
         text: `Course ${courseCode.trim().toUpperCase()} created and published to the catalog.`,
@@ -80,6 +81,7 @@ const roleLabel = isAdmin
       setTitle("");
       setCredits("3");
       setMaxCapacity("30");
+      setPrerequisiteCourseId("");
       await loadCourses();
     } catch (err) {
       setFeedback({ type: "error", text: err.message || "Failed to create course." });
@@ -303,6 +305,25 @@ const roleLabel = isAdmin
                   className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
+
+              <div>
+                 <label htmlFor="prerequisiteCourseId" className="block text-xs font-semibold text-slate-700 mb-1">
+                   Prerequisite Course <span className="text-slate-400 font-normal">(Optional)</span>
+                 </label>
+                          <select
+                           id="prerequisiteCourseId"
+                           value={prerequisiteCourseId}
+                           onChange={(e) => setPrerequisiteCourseId(e.target.value)}
+                           className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                     >
+                             <option value="">None (Open to all students)</option>
+                              {courses.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.courseCode} — {c.title}
+                               </option>
+                                        ))}
+                                  </select>
+                  </div>
 
               <button
                 type="submit"
