@@ -35,12 +35,13 @@ export default function Dashboard({ user, navigate }) {
   const [feedback, setFeedback] = useState(null); // { type: 'success' | 'error', text: string }
 
   const isAdmin = user?.roles?.includes("ROLE_ADMIN");
+  const isStudent = user?.roles?.includes("ROLE_STUDENT");
 
   const loadDashboardData = async () => {
     if (!user) return;
     setIsLoading(true);
     try {
-      if (isAdmin) {
+      if (!isStudent) {
         const catalog = await getAllCourses();
         setCourses(catalog);
         setEnrollments([]);

@@ -18,6 +18,10 @@ export default function App() {
 
   // Initialize user session from localStorage if a valid JWT already exists
   const [user, setUser] = useState(() => getStoredUser());
+  const isStaff = (u) =>
+  u?.roles?.some((r) =>
+    ["ROLE_ADMIN", "ROLE_REGISTRAR", "ROLE_ADVISOR"].includes(r)
+  );
 
   const handleLoginSuccess = (loggedInUser) => {
     setUser(loggedInUser);
@@ -46,11 +50,11 @@ export default function App() {
       case "services":
         return <Services />;
       case "dashboard":
-        return user?.roles?.includes("ROLE_ADMIN") ? (
-          <AdminDashboard user={user} navigate={setCurrentView} />
-        ) : (
-          <Dashboard user={user} navigate={setCurrentView} />
-        );
+  return isStaff(user) ? (
+    <AdminDashboard user={user} navigate={setCurrentView} />
+  ) : (
+    <Dashboard user={user} navigate={setCurrentView} />
+  );
       case "auth-preview":
         return (
           <AuthPreview

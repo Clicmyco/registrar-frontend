@@ -25,6 +25,18 @@ export default function AdminDashboard({ user, navigate }) {
   // Feedback Banner
   const [feedback, setFeedback] = useState(null); // { type: 'success' | 'error', text: string }
 
+  const isAdmin = user?.roles?.includes("ROLE_ADMIN");
+const isRegistrar = user?.roles?.includes("ROLE_REGISTRAR");
+const isAdvisor = user?.roles?.includes("ROLE_ADVISOR");
+const isStaff = isAdmin || isRegistrar || isAdvisor;
+const canAssignGrades = isAdmin || isRegistrar;
+
+const roleLabel = isAdmin
+  ? "Registrar Admin"
+  : isRegistrar
+  ? "Academic Registrar"
+  : "Academic Advisor";
+   
   const loadCourses = async () => {
     setIsLoadingCourses(true);
     try {
@@ -125,15 +137,15 @@ export default function AdminDashboard({ user, navigate }) {
   };
 
   // --- GUARD: Admin Only ---
-  const isAdmin = user?.roles?.includes("ROLE_ADMIN");
-  if (!user || !isAdmin) {
+ 
+  if (!user || !isStaff) {
     return (
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="max-w-lg mx-auto bg-white rounded-2xl border border-slate-200 p-8 shadow-sm text-center space-y-4">
           <div className="w-12 h-12 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto text-xl">
             <i className="fa-solid fa-user-shield"></i>
           </div>
-          <h2 className="text-xl font-bold text-slate-900">Admin Clearance Required</h2>
+          <h2 className="text-xl font-bold text-slate-900">Staff Clearance Required</h2>
           <p className="text-sm text-slate-600">
             This portal is restricted to Registrar Administrators.
           </p>
@@ -169,7 +181,7 @@ export default function AdminDashboard({ user, navigate }) {
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-bold text-slate-900">{displayName}</h2>
                 <span className="px-2 py-0.5 text-xs font-semibold rounded bg-amber-100 text-amber-800">
-                  Registrar Admin
+                       {roleLabel}
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
@@ -221,6 +233,7 @@ export default function AdminDashboard({ user, navigate }) {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
           {/* LEFT COLUMN: Create New Course Form (4 Columns) */}
+          {isAdmin && (
           <div className="lg:col-span-4 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
             <div>
               <h3 className="text-base font-bold text-slate-900">Publish New Course</h3>
@@ -301,9 +314,9 @@ export default function AdminDashboard({ user, navigate }) {
               </button>
             </form>
           </div>
-
+          )}
           {/* RIGHT COLUMN: Course Catalog & Roster Inspector (8 Columns) */}
-          <div className="lg:col-span-8 space-y-6">
+         <div className={`${isAdmin ? "lg:col-span-8" : "lg:col-span-12"} space-y-6`}>
 
             {/* Course Catalog Table */}
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
@@ -451,26 +464,32 @@ export default function AdminDashboard({ user, navigate }) {
                                   {entry.status}
                                 </span>
                               </td>
-                              <td className="py-2.5 px-2 text-right">
-                                {isEnrolled ? (
-                                  <select
-                                    value={entry.grade || ""}
-                                    disabled={isSaving}
-                                    onChange={(e) =>
-                                      handleGradeChange(entry.enrollmentId, e.target.value)
-                                    }
-                                    className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
-                                  >
-                                    {GRADE_OPTIONS.map((g) => (
-                                      <option key={g || "IP"} value={g}>
-                                        {g ? g : "In Progress"}
-                                      </option>
-                                    ))}
-                                  </select>
-                                ) : (
-                                  <span className="text-xs text-slate-400 italic">Dropped</span>
+                     <td className="py-2.5 px-2 text-right">
+                                 {isEnrolled ? (
+                                 canAssignGrades ? (
+                         <select
+                           value={entry.grade || ""}
+                           disabled={isSaving}
+                           onChange={(e) => handleGradeChange(entry.enrollmentId, e.target.value)}
+                           className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                              >
+                           {GRADE_OPTIONS.map((g) => (
+                         <option key={g || "IP"} value={g}>
+                           {g ? g : "In Progress"}
+                           </option>
+                               ))}
+                            </select>
+                                 ) : (
+                            <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs font-semibold">
+                            {entry.grade || "In Progress"}
+                             </span>
+                                     )
+                                 ) : (
+                            <span className="text-xs text-slate-400 italic">
+                            {entry.status.replace("_", " ")}
+                           </span>
                                 )}
-                              </td>
+                       </td>
                             </tr>
                           );
                         })}
@@ -483,8 +502,8 @@ export default function AdminDashboard({ user, navigate }) {
 
           </div>
         </div>
-   <AdminGovernancePanel/>
-   <AdvisorApprovalQueue/>
+  <AdvisorApprovalQueue onDecision={loadCourses} />
+  {isAdmin && <AdminGovernancePanel />}
       </section>
       
     </main>
