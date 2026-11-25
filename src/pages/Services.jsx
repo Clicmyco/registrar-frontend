@@ -129,8 +129,36 @@ useEffect(() => {
    )}
   </section>
 
+
+    
+
        
       </section>
     </main>
+
   );
+  
 } 
+
+// --- Admin Governance Endpoints (ROLE_ADMIN) ---
+export function getAdminUsers() {
+  return apiRequest("/admin/users", { method: "GET" });
+}
+
+export function updateUserRoles(userId, roles) {
+  return apiRequest(`/admin/users/${userId}/roles`, {
+    method: "PATCH",
+    body: JSON.stringify({ roles }),
+  });
+}
+
+export function updateUserStatus(userId, active) {
+  return apiRequest(`/admin/users/${userId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ active }),
+  });
+}
+
+export function getAuditLogs() {
+  return apiRequest("/admin/audit-logs", { method: "GET" });
+}

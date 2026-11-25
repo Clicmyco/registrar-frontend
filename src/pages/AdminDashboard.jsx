@@ -1,6 +1,8 @@
 // src/pages/AdminDashboard.jsx
 import { useState, useEffect } from "react";
 import { getAllCourses, createCourse, getCourseRoster, assignGrade } from "../services/api";
+import AdminGovernancePanel from "../components/AdminGovernancePanel";
+
 
 export default function AdminDashboard({ user, navigate }) {
   const [courses, setCourses] = useState([]);
@@ -481,7 +483,10 @@ export default function AdminDashboard({ user, navigate }) {
 
           </div>
         </div>
+   <AdminGovernancePanel/>
       </section>
+      
     </main>
   );
+
 }
