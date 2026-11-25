@@ -188,3 +188,14 @@ export function updateUserStatus(userId, active) {
 export function getAuditLogs() {
   return apiRequest("/admin/audit-logs", { method: "GET" });
 }
+// --- Advisor / Registrar Approval Workflow ---
+export function getPendingEnrollments() {
+  return apiRequest("/enrollments/pending", { method: "GET" });
+}
+
+export function reviewEnrollment(enrollmentId, approve, advisorNote = "") {
+  return apiRequest(`/enrollments/${enrollmentId}/review`, {
+    method: "PATCH",
+    body: JSON.stringify({ approve, advisorNote }),
+  });
+}

@@ -17,6 +17,12 @@ const gradePointsMap = {
   D: 1.0,
   F: 0.0,
 };
+const statusBadge = {
+  ENROLLED: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  PENDING_APPROVAL: "bg-amber-50 text-amber-700 border-amber-200",
+  REJECTED: "bg-rose-50 text-rose-700 border-rose-200",
+  DROPPED: "bg-slate-100 text-slate-600 border-slate-200",
+};
 
 export default function Dashboard({ user, navigate }) {
   const [courses, setCourses] = useState([]);
@@ -288,8 +294,14 @@ export default function Dashboard({ user, navigate }) {
                             {course.courseCode}
                           </td>
                           <td className="py-3 px-2 text-xs sm:text-sm font-medium text-slate-900">
-                            {course.title}
-                          </td>
+                           <div>{course.title}</div>
+                            {enrollment?.advisorNote && (
+                             <p className="text-xs font-normal text-slate-500 mt-0.5">
+                               Advisor note:{" "}
+                              <span className="font-medium text-slate-700">{enrollment.advisorNote}</span>
+                             </p>
+                               )}
+                         </td>
                           <td className="py-3 px-2 text-center text-xs font-semibold text-slate-600">
                             {course.credits}
                           </td>
@@ -319,45 +331,85 @@ export default function Dashboard({ user, navigate }) {
                               )}
                             </td>
                           )}
-                          <td className="py-3 px-2 text-right">
-                            {isAdmin ? (
-                              <span className="text-xs text-slate-400">Catalog Item</span>
-                            ) : enrollment?.status === "ENROLLED" ? (
-                              <button
-                                disabled={isBusy}
-                                onClick={() => handleDrop(enrollment.enrollmentId, course.id)}
-                                className="px-3 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 disabled:opacity-50 transition"
-                              >
-                                {isBusy ? "Dropping..." : "Drop"}
-                              </button>
-                           ) : enrollment?.status === "DROPPED" ? (
-                           isFull ? (
-                             <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-                               Full
-                             </span>
-                           ) : (
-                             <button
-                               disabled={isBusy}
-                               onClick={() => handleEnroll(course.id)}
-                               className="px-3 py-1 rounded-lg text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 disabled:opacity-50 transition"
-                             >
-                               {isBusy ? "Re-Enrolling..." : "Re-Enroll"}
-                             </button>
-                           )
-                         ) : isFull ? (
-                           <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-                             Full
-                           </span>
-                         ) : (
-                           <button
-                             disabled={isBusy}
-                             onClick={() => handleEnroll(course.id)}
-                             className="px-3 py-1 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition"
-                           >
-                             {isBusy ? "Enrolling..." : "Add Course"}
-                           </button>
-                         )}
-                          </td>
+                                        <td className="py-3 px-2 text-right">
+  {isAdmin ? (
+    <span className="text-xs text-slate-400">Catalog Item</span>
+  ) : enrollment?.status === "ENROLLED" ? (
+    <div className="inline-flex items-center gap-2">
+      <span
+        className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${statusBadge.ENROLLED}`}
+      >
+        Enrolled
+      </span>
+      <button
+        disabled={isBusy}
+        onClick={() => handleDrop(enrollment.enrollmentId, course.id)}
+        className="px-3 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 disabled:opacity-50 transition"
+      >
+        {isBusy ? "Dropping..." : "Drop"}
+      </button>
+    </div>
+  ) : enrollment?.status === "PENDING_APPROVAL" ? (
+    <div className="inline-flex items-center gap-2">
+      <span
+        className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${statusBadge.PENDING_APPROVAL}`}
+      >
+        Pending Approval
+      </span>
+      <button
+        disabled={isBusy}
+        onClick={() => handleDrop(enrollment.enrollmentId, course.id)}
+        className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 disabled:opacity-50 transition"
+        title="Cancel pending request"
+      >
+        {isBusy ? "..." : "Cancel"}
+      </button>
+    </div>
+  ) : enrollment?.status === "REJECTED" ? (
+    <div className="inline-flex items-center gap-2">
+      <span
+        className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${statusBadge.REJECTED}`}
+      >
+        Rejected
+      </span>
+      {!isFull && (
+        <button
+          disabled={isBusy}
+          onClick={() => handleEnroll(course.id)}
+          className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 disabled:opacity-50 transition"
+        >
+          {isBusy ? "Requesting..." : "Re-Request"}
+        </button>
+      )}
+    </div>
+  ) : enrollment?.status === "DROPPED" ? (
+    isFull ? (
+      <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+        Full
+      </span>
+    ) : (
+      <button
+        disabled={isBusy}
+        onClick={() => handleEnroll(course.id)}
+        className="px-3 py-1 rounded-lg text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 disabled:opacity-50 transition"
+      >
+        {isBusy ? "Requesting..." : "Re-Enroll"}
+      </button>
+    )
+  ) : isFull ? (
+    <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+      Full
+    </span>
+  ) : (
+    <button
+      disabled={isBusy}
+      onClick={() => handleEnroll(course.id)}
+      className="px-3 py-1 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition"
+    >
+      {isBusy ? "Requesting..." : "Request Course"}
+    </button>
+  )}
+</td>
                         </tr>
                       );
                     })}

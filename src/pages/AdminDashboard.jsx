@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { getAllCourses, createCourse, getCourseRoster, assignGrade } from "../services/api";
 import AdminGovernancePanel from "../components/AdminGovernancePanel";
-
+import AdvisorApprovalQueue from "../components/AdvisorApprovalQueue";
 
 export default function AdminDashboard({ user, navigate }) {
   const [courses, setCourses] = useState([]);
@@ -484,6 +484,7 @@ export default function AdminDashboard({ user, navigate }) {
           </div>
         </div>
    <AdminGovernancePanel/>
+   <AdvisorApprovalQueue/>
       </section>
       
     </main>
