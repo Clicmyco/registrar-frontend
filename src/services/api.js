@@ -204,3 +204,25 @@ export function reviewEnrollment(enrollmentId, approve, advisorNote = "") {
 export function getMyTranscript() {
   return apiRequest("/enrollments/transcript", { method: "GET" });
 }
+// --- Academic Terms & Registration Windows ---
+export function getActiveTerm() {
+  return apiRequest("/terms/active", { method: "GET" });
+}
+
+export function getAllTerms() {
+  return apiRequest("/terms", { method: "GET" });
+}
+
+export function createAcademicTerm(termData) {
+  return apiRequest("/terms", {
+    method: "POST",
+    body: JSON.stringify(termData),
+  });
+}
+
+export function updateAcademicTerm(termId, updates) {
+  return apiRequest(`/terms/${termId}`, {
+    method: "PATCH",
+    body: JSON.stringify(updates),
+  });
+}

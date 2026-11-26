@@ -5,8 +5,8 @@ import {
   getMyEnrollments,
   enrollInCourse,
   dropCourse,
+  getActiveTerm,
 } from "../services/api";
-
 import OfficialTranscript from "../components/OfficialTranscript";
 
 const gradePointsMap = {
@@ -19,6 +19,7 @@ const gradePointsMap = {
   D: 1.0,
   F: 0.0,
 };
+
 const statusBadge = {
   ENROLLED: "bg-emerald-50 text-emerald-700 border-emerald-200",
   PENDING_APPROVAL: "bg-amber-50 text-amber-700 border-amber-200",
@@ -29,14 +30,13 @@ const statusBadge = {
 export default function Dashboard({ user, navigate }) {
   const [courses, setCourses] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
-  // Stores simulated target grades locally per courseId (defaults to "A")
+  const [activeTerm, setActiveTerm] = useState(null);
   const [simulatedGrades, setSimulatedGrades] = useState({});
   const [showTranscript, setShowTranscript] = useState(false);
 
-
   const [isLoading, setIsLoading] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState(null);
-  const [feedback, setFeedback] = useState(null); // { type: 'success' | 'error', text: string }
+  const [feedback, setFeedback] = useState(null);
 
   const isAdmin = user?.roles?.includes("ROLE_ADMIN");
   const isStudent = user?.roles?.includes("ROLE_STUDENT");
@@ -45,20 +45,20 @@ export default function Dashboard({ user, navigate }) {
     if (!user) return;
     setIsLoading(true);
     try {
-      if (!isStudent) {
-        const catalog = await getAllCourses();
-        setCourses(catalog);
-        setEnrollments([]);
-      } else {
-        const [catalog, myEnrollments] = await Promise.all([
-          getAllCourses(),
-          getMyEnrollments(),
-        ]);
-        setCourses(catalog);
-        setEnrollments(myEnrollments);
-      }
+      const [catalog, term, myEnrollments] = await Promise.all([
+        getAllCourses(),
+        getActiveTerm().catch(() => null),
+        isStudent ? getMyEnrollments() : Promise.resolve([]),
+      ]);
+
+      setCourses(catalog);
+      setActiveTerm(term);
+      setEnrollments(myEnrollments);
     } catch (err) {
-      setFeedback({ type: "error", text: err.message || "Failed to load registrar data." });
+      setFeedback({
+        type: "error",
+        text: err.message || "Failed to load registrar data.",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -127,9 +127,6 @@ export default function Dashboard({ user, navigate }) {
   const activeEnrollments = enrollments.filter((e) => e.status === "ENROLLED");
   const totalCredits = activeEnrollments.reduce((sum, item) => sum + item.credits, 0);
 
-  
-
-  // 1. Official GPA (only courses with a recorded Registrar grade)
   const gradedEnrollments = activeEnrollments.filter(
     (item) => item.grade && gradePointsMap[item.grade] !== undefined
   );
@@ -141,7 +138,6 @@ export default function Dashboard({ user, navigate }) {
   const officialGpa =
     gradedCredits > 0 ? (officialQualityPoints / gradedCredits).toFixed(2) : "—";
 
-  // 2. Simulated Term GPA (uses Official Grade if locked in, otherwise simulated dropdown)
   let totalQualityPoints = 0;
   activeEnrollments.forEach((item) => {
     const effectiveGrade =
@@ -204,20 +200,16 @@ export default function Dashboard({ user, navigate }) {
                 <div className="text-lg font-extrabold text-indigo-900">{officialGpa}</div>
               </div>
               <div className="bg-slate-50 px-4 py-2 rounded-xl border border-slate-200">
-                <div className="text-xs text-slate-500">Simulated Term GPA
-                </div>
-                
+                <div className="text-xs text-slate-500">Simulated Term GPA</div>
                 <div className="text-lg font-extrabold text-emerald-700">{simulatedGpa}</div>
-                
-                <button
-                     onClick={() => setShowTranscript((prev) => !prev)}
-                     className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition shadow-sm self-center"
-                     >
-                     <i className="fa-solid fa-file-lines mr-1.5"></i>
-                        {showTranscript ? "Course Registration" : "Official Transcript"}
-                     </button>
-
               </div>
+              <button
+                onClick={() => setShowTranscript((prev) => !prev)}
+                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition shadow-sm self-center"
+              >
+                <i className="fa-solid fa-file-lines mr-1.5"></i>
+                {showTranscript ? "Course Registration" : "Official Transcript"}
+              </button>
             </div>
           )}
         </div>
@@ -248,294 +240,314 @@ export default function Dashboard({ user, navigate }) {
           </div>
         )}
 
-        {/* Admin Notice */}
-        {isAdmin && (
-          <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
-            <i className="fa-solid fa-user-shield mr-2"></i>
-            You are signed in as an <strong>Admin</strong>. You can view the live course catalog below. Student enrollment actions are restricted to <code className="bg-amber-100 px-1 rounded">ROLE_STUDENT</code> accounts.
+        {/* Active Semester Banner */}
+        {activeTerm && (
+          <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-slate-800">{activeTerm.name}</span>
+              <span className="font-mono text-slate-400">({activeTerm.code})</span>
+              <span
+                className={`px-2.5 py-0.5 rounded-full font-semibold border ${
+                  activeTerm.registrationOpen
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : "bg-rose-50 text-rose-700 border-rose-200"
+                }`}
+              >
+                {activeTerm.registrationOpen ? "Registration Open" : "Registration Closed"}
+              </span>
+            </div>
+            {activeTerm.addDropDeadline && (
+              <span className="text-slate-500">
+                Add / Drop Deadline:{" "}
+                <strong className="text-slate-700">{activeTerm.addDropDeadline}</strong>
+              </span>
+            )}
           </div>
         )}
 
-     {showTranscript && !isAdmin ? (
-  <OfficialTranscript onBack={() => setShowTranscript(false)} />
-) : (
+        {/* Main Workspace: Official Transcript OR Registration + GPA Simulator */}
+        {showTranscript && !isAdmin ? (
+          <OfficialTranscript onBack={() => setShowTranscript(false)} />
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-<div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Course Catalog & Registration Table (7 Columns) */}
+            <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Semester Course Registration
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Live course catalog loaded from Spring Boot
+                  </p>
+                </div>
+                <button
+                  onClick={loadDashboardData}
+                  disabled={isLoading}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-indigo-600 hover:bg-indigo-50 transition"
+                >
+                  <i className="fa-solid fa-rotate mr-1"></i>Refresh
+                </button>
+              </div>
 
-          {/* Course Catalog & Registration Table (7 Columns) */}
-          <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-bold text-slate-900">
-                  Semester Course Registration
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Live course catalog loaded from Spring Boot
-                </p>
-              </div>
-              <button
-                onClick={loadDashboardData}
-                disabled={isLoading}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-indigo-600 hover:bg-indigo-50 transition"
-              >
-                <i className="fa-solid fa-rotate mr-1"></i>Refresh
-              </button>
-            </div>
+              {isLoading ? (
+                <div className="py-10 text-center text-xs text-slate-500">
+                  Loading courses from server...
+                </div>
+              ) : courses.length === 0 ? (
+                <div className="py-10 text-center text-xs text-slate-500">
+                  No courses found in the database yet. Sign in as an Admin to create one!
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-xs uppercase text-slate-500">
+                        <th className="py-2.5 px-2">Code</th>
+                        <th className="py-2.5 px-2">Course Title</th>
+                        <th className="py-2.5 px-2 text-center">Cr.</th>
+                        <th className="py-2.5 px-2 text-center">Seats</th>
+                        {!isAdmin && <th className="py-2.5 px-2 text-center">Grade</th>}
+                        <th className="py-2.5 px-2 text-right">Status / Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-sm">
+                      {courses.map((course) => {
+                        const enrollment = enrollments.find((e) => e.courseId === course.id);
+                        const isBusy = actionLoadingId === course.id;
+                        const enrolledCount = course.enrolledCount ?? 0;
+                        const maxCapacity = course.maxCapacity ?? 30;
+                        const isFull = enrolledCount >= maxCapacity;
 
-            {isLoading ? (
-              <div className="py-10 text-center text-xs text-slate-500">
-                Loading courses from server...
-              </div>
-            ) : courses.length === 0 ? (
-              <div className="py-10 text-center text-xs text-slate-500">
-                No courses found in the database yet. Sign in as an Admin to create one!
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-200 text-xs uppercase text-slate-500">
-                      <th className="py-2.5 px-2">Code</th>
-                      <th className="py-2.5 px-2">Course Title</th>
-                      <th className="py-2.5 px-2 text-center">Cr.</th>
-                      <th className="py-2.5 px-2 text-center">Seats</th>
-                      {!isAdmin && <th className="py-2.5 px-2 text-center">Grade</th>}
-                      <th className="py-2.5 px-2 text-right">Status / Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-sm">
-                    {courses.map((course) => {
-                      const enrollment = enrollments.find((e) => e.courseId === course.id);
-                      const isBusy = actionLoadingId === course.id;
-                      const enrolledCount = course.enrolledCount ?? 0;
-                      const maxCapacity = course.maxCapacity ?? 30;
-                      const isFull = enrolledCount >= maxCapacity;
-                      return (
-                        <tr key={course.id} className="hover:bg-slate-50 transition">
-                          <td className="py-3 px-2 font-mono text-xs font-semibold text-slate-700">
-                            {course.courseCode}
-                          </td>
-                          <td className="py-3 px-2 text-xs sm:text-sm font-medium text-slate-900">
-                           <div>{course.title}</div>
-                            {enrollment?.advisorNote && (
-                             <p className="text-xs font-normal text-slate-500 mt-0.5">
-                               Advisor note:{" "}
-                              <span className="font-medium text-slate-700">{enrollment.advisorNote}</span>
-                             </p>
-                            
-                               )}
-                                {course.prerequisiteCourseCode && (
-                              <span className="inline-block mt-0.5 px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-semibold">
+                        return (
+                          <tr key={course.id} className="hover:bg-slate-50 transition">
+                            <td className="py-3 px-2 font-mono text-xs font-semibold text-slate-700">
+                              {course.courseCode}
+                            </td>
+                            <td className="py-3 px-2 text-xs sm:text-sm font-medium text-slate-900">
+                              <div>{course.title}</div>
+                              {course.prerequisiteCourseCode && (
+                                <span className="inline-block mt-0.5 px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-semibold">
                                   Prereq: {course.prerequisiteCourseCode}
-                                                   </span>
-                                            )}
-                         </td>
-                          <td className="py-3 px-2 text-center text-xs font-semibold text-slate-600">
-                            {course.credits}
-                          </td>
-                          <td className="py-3 px-2 text-center text-xs font-semibold">
-                         <span
-                           className={`px-2 py-0.5 rounded-full ${
-                             isFull
-                               ? "bg-rose-100 text-rose-700"
-                               : "bg-slate-100 text-slate-700"
-                           }`}
-                         >
-                           {enrolledCount} / {maxCapacity}
-                         </span>
-                       </td>
-                          {!isAdmin && (
-                            <td className="py-3 px-2 text-center">
-                              {enrollment?.status === "ENROLLED" ? (
-                                enrollment.grade ? (
-                                  <span className="px-2 py-0.5 rounded-md text-xs font-bold bg-indigo-100 text-indigo-800">
-                                    {enrollment.grade}
+                                </span>
+                              )}
+                              {enrollment?.advisorNote && (
+                                <p className="text-xs font-normal text-slate-500 mt-0.5">
+                                  Advisor note:{" "}
+                                  <span className="font-medium text-slate-700">
+                                    {enrollment.advisorNote}
                                   </span>
-                                ) : (
-                                  <span className="text-xs text-slate-400 italic">In Progress</span>
-                                )
-                              ) : (
-                                <span className="text-xs text-slate-300">—</span>
+                                </p>
                               )}
                             </td>
-                          )}
-                                        <td className="py-3 px-2 text-right">
-                               {isAdmin ? (
-                              <span className="text-xs text-slate-400">Catalog Item</span>
-                           ) : enrollment?.status === "ENROLLED" ? (
-                         <div className="inline-flex items-center gap-2">
-                           <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${statusBadge.ENROLLED}`}
-                                             >
-                                                 Enrolled
-                          </span>
-                          <button
-                              disabled={isBusy}
-                              onClick={() => handleDrop(enrollment.enrollmentId, course.id)}
-                             className="px-3 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 disabled:opacity-50 transition"
-                                      >
-                                {isBusy ? "Dropping..." : "Drop"}
-                                 </button>
-                     </div>
-  ) : enrollment?.status === "PENDING_APPROVAL" ? (
-    <div className="inline-flex items-center gap-2">
-      <span
-        className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${statusBadge.PENDING_APPROVAL}`}
-      >
-        Pending Approval
-      </span>
-      <button
-        disabled={isBusy}
-        onClick={() => handleDrop(enrollment.enrollmentId, course.id)}
-        className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 disabled:opacity-50 transition"
-        title="Cancel pending request"
-      >
-        {isBusy ? "..." : "Cancel"}
-      </button>
-    </div>
-  ) : enrollment?.status === "REJECTED" ? (
-    <div className="inline-flex items-center gap-2">
-      <span
-        className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${statusBadge.REJECTED}`}
-      >
-        Rejected
-      </span>
-      {!isFull && (
-        <button
-          disabled={isBusy}
-          onClick={() => handleEnroll(course.id)}
-          className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 disabled:opacity-50 transition"
-        >
-          {isBusy ? "Requesting..." : "Re-Request"}
-        </button>
-      )}
-    </div>
-  ) : enrollment?.status === "DROPPED" ? (
-    isFull ? (
-      <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-        Full
-      </span>
-    ) : (
-      <button
-        disabled={isBusy}
-        onClick={() => handleEnroll(course.id)}
-        className="px-3 py-1 rounded-lg text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 disabled:opacity-50 transition"
-      >
-        {isBusy ? "Requesting..." : "Re-Enroll"}
-      </button>
-    )
-  ) : isFull ? (
-    <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-      Full
-    </span>
-  ) : (
-    <button
-      disabled={isBusy}
-      onClick={() => handleEnroll(course.id)}
-      className="px-3 py-1 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition"
-    >
-      {isBusy ? "Requesting..." : "Request Course"}
-    </button>
-  )}
- </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          {/* Official Grades & Interactive GPA Simulator Panel (5 Columns) */}
-          <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4 flex flex-col justify-between">
-            <div>
-              <div>
-                <h3 className="text-base font-bold text-slate-900">
-                  Official Grades &amp; GPA Simulator
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Official Registrar grades lock in automatically; adjust in-progress courses to project your term GPA
-                </p>
-              </div>
-
-              <div className="space-y-3 mt-4">
-                {activeEnrollments.length === 0 ? (
-                  <div className="p-4 rounded-xl bg-slate-50 text-xs text-slate-500 text-center">
-                    No active enrolled courses. Enroll in a course on the left to track grades.
-                  </div>
-                ) : (
-                  activeEnrollments.map((item) => {
-                    const hasOfficialGrade =
-                      item.grade && gradePointsMap[item.grade] !== undefined;
-                    const currentGrade = hasOfficialGrade
-                      ? item.grade
-                      : simulatedGrades[item.courseId] || "A";
-
-                    return (
-                      <div
-                        key={item.enrollmentId}
-                        className={`p-3 rounded-xl border flex items-center justify-between gap-2 ${
-                          hasOfficialGrade
-                            ? "bg-indigo-50/50 border-indigo-200"
-                            : "bg-slate-50 border-slate-200"
-                        }`}
-                      >
-                        <div>
-                          <div className="text-xs font-bold text-slate-800">
-                            {item.courseCode} — {item.courseTitle}
-                          </div>
-                          <div className="text-xs text-slate-500">
-                            {item.credits} Credit Hours •{" "}
-                            {hasOfficialGrade ? (
-                              <span className="text-indigo-700 font-semibold">Official</span>
-                            ) : (
-                              <span>Simulated</span>
+                            <td className="py-3 px-2 text-center text-xs font-semibold text-slate-600">
+                              {course.credits}
+                            </td>
+                            <td className="py-3 px-2 text-center text-xs font-semibold">
+                              <span
+                                className={`px-2 py-0.5 rounded-full ${
+                                  isFull
+                                    ? "bg-rose-100 text-rose-700"
+                                    : "bg-slate-100 text-slate-700"
+                                }`}
+                              >
+                                {enrolledCount} / {maxCapacity}
+                              </span>
+                            </td>
+                            {!isAdmin && (
+                              <td className="py-3 px-2 text-center">
+                                {enrollment?.status === "ENROLLED" ? (
+                                  enrollment.grade ? (
+                                    <span className="px-2 py-0.5 rounded-md text-xs font-bold bg-indigo-100 text-indigo-800">
+                                      {enrollment.grade}
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs text-slate-400 italic">In Progress</span>
+                                  )
+                                ) : (
+                                  <span className="text-xs text-slate-300">—</span>
+                                )}
+                              </td>
                             )}
+                            <td className="py-3 px-2 text-right">
+                              {isAdmin ? (
+                                <span className="text-xs text-slate-400">Catalog Item</span>
+                              ) : enrollment?.status === "ENROLLED" ? (
+                                <div className="inline-flex items-center gap-2">
+                                  <span
+                                    className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${statusBadge.ENROLLED}`}
+                                  >
+                                    Enrolled
+                                  </span>
+                                  <button
+                                    disabled={isBusy}
+                                    onClick={() => handleDrop(enrollment.enrollmentId, course.id)}
+                                    className="px-3 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 disabled:opacity-50 transition"
+                                  >
+                                    {isBusy ? "Dropping..." : "Drop"}
+                                  </button>
+                                </div>
+                              ) : enrollment?.status === "PENDING_APPROVAL" ? (
+                                <div className="inline-flex items-center gap-2">
+                                  <span
+                                    className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${statusBadge.PENDING_APPROVAL}`}
+                                  >
+                                    Pending Approval
+                                  </span>
+                                  <button
+                                    disabled={isBusy}
+                                    onClick={() => handleDrop(enrollment.enrollmentId, course.id)}
+                                    className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 disabled:opacity-50 transition"
+                                    title="Cancel pending request"
+                                  >
+                                    {isBusy ? "..." : "Cancel"}
+                                  </button>
+                                </div>
+                              ) : enrollment?.status === "REJECTED" ? (
+                                <div className="inline-flex items-center gap-2">
+                                  <span
+                                    className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${statusBadge.REJECTED}`}
+                                  >
+                                    Rejected
+                                  </span>
+                                  {!isFull && (
+                                    <button
+                                      disabled={isBusy}
+                                      onClick={() => handleEnroll(course.id)}
+                                      className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 disabled:opacity-50 transition"
+                                    >
+                                      {isBusy ? "Requesting..." : "Re-Request"}
+                                    </button>
+                                  )}
+                                </div>
+                              ) : enrollment?.status === "DROPPED" ? (
+                                isFull ? (
+                                  <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                                    Full
+                                  </span>
+                                ) : (
+                                  <button
+                                    disabled={isBusy}
+                                    onClick={() => handleEnroll(course.id)}
+                                    className="px-3 py-1 rounded-lg text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 disabled:opacity-50 transition"
+                                  >
+                                    {isBusy ? "Requesting..." : "Re-Enroll"}
+                                  </button>
+                                )
+                              ) : isFull ? (
+                                <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                                  Full
+                                </span>
+                              ) : (
+                                <button
+                                  disabled={isBusy}
+                                  onClick={() => handleEnroll(course.id)}
+                                  className="px-3 py-1 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition"
+                                >
+                                  {isBusy ? "Requesting..." : "Request Course"}
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Official Grades & Interactive GPA Simulator Panel (5 Columns) */}
+            <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4 flex flex-col justify-between">
+              <div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Official Grades &amp; GPA Simulator
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Official Registrar grades lock in automatically; adjust in-progress courses to project your term GPA
+                  </p>
+                </div>
+
+                <div className="space-y-3 mt-4">
+                  {activeEnrollments.length === 0 ? (
+                    <div className="p-4 rounded-xl bg-slate-50 text-xs text-slate-500 text-center">
+                      No active enrolled courses. Enroll in a course on the left to track grades.
+                    </div>
+                  ) : (
+                    activeEnrollments.map((item) => {
+                      const hasOfficialGrade =
+                        item.grade && gradePointsMap[item.grade] !== undefined;
+                      const currentGrade = hasOfficialGrade
+                        ? item.grade
+                        : simulatedGrades[item.courseId] || "A";
+
+                      return (
+                        <div
+                          key={item.enrollmentId}
+                          className={`p-3 rounded-xl border flex items-center justify-between gap-2 ${
+                            hasOfficialGrade
+                              ? "bg-indigo-50/50 border-indigo-200"
+                              : "bg-slate-50 border-slate-200"
+                          }`}
+                        >
+                          <div>
+                            <div className="text-xs font-bold text-slate-800">
+                              {item.courseCode} — {item.courseTitle}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              {item.credits} Credit Hours •{" "}
+                              {hasOfficialGrade ? (
+                                <span className="text-indigo-700 font-semibold">Official</span>
+                              ) : (
+                                <span>Simulated</span>
+                              )}
+                            </div>
                           </div>
+
+                          {hasOfficialGrade ? (
+                            <span className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-xs font-bold">
+                              {item.grade} ({gradePointsMap[item.grade].toFixed(2)})
+                            </span>
+                          ) : (
+                            <select
+                              value={currentGrade}
+                              onChange={(e) => updateCourseGrade(item.courseId, e.target.value)}
+                              className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-indigo-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            >
+                              {Object.keys(gradePointsMap).map((gradeLetter) => (
+                                <option key={gradeLetter} value={gradeLetter}>
+                                  {gradeLetter} ({gradePointsMap[gradeLetter].toFixed(2)})
+                                </option>
+                              ))}
+                            </select>
+                          )}
                         </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
 
-                        {hasOfficialGrade ? (
-                          <span className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-xs font-bold">
-                            {item.grade} ({gradePointsMap[item.grade].toFixed(2)})
-                          </span>
-                        ) : (
-                          <select
-                            value={currentGrade}
-                            onChange={(e) => updateCourseGrade(item.courseId, e.target.value)}
-                            className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-indigo-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                          >
-                            {Object.keys(gradePointsMap).map((gradeLetter) => (
-                              <option key={gradeLetter} value={gradeLetter}>
-                                {gradeLetter} ({gradePointsMap[gradeLetter].toFixed(2)})
-                              </option>
-                            ))}
-                          </select>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
+              <div className="pt-3 mt-4 border-t border-slate-200 space-y-1.5 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-slate-600">Official Quality Points:</span>
+                  <span className="font-bold text-indigo-900">
+                    {officialQualityPoints.toFixed(2)} pts ({gradedCredits} Cr)
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-slate-600">Projected Quality Points:</span>
+                  <span className="font-bold text-slate-900">
+                    {totalQualityPoints.toFixed(2)} pts ({totalCredits} Cr)
+                  </span>
+                </div>
               </div>
             </div>
 
-            <div className="pt-3 mt-4 border-t border-slate-200 space-y-1.5 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-slate-600">Official Quality Points:</span>
-                <span className="font-bold text-indigo-900">
-                  {officialQualityPoints.toFixed(2)} pts ({gradedCredits} Cr)
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-slate-600">Projected Quality Points:</span>
-                <span className="font-bold text-slate-900">
-                  {totalQualityPoints.toFixed(2)} pts ({totalCredits} Cr)
-                </span>
-              </div>
-            </div>
           </div>
-
-        </div>
-)}
+        )}
       </section>
     </main>
   );

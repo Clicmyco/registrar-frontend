@@ -3,6 +3,8 @@ import { useState, useEffect } from "react";
 import { getAllCourses, createCourse, getCourseRoster, assignGrade } from "../services/api";
 import AdminGovernancePanel from "../components/AdminGovernancePanel";
 import AdvisorApprovalQueue from "../components/AdvisorApprovalQueue";
+import TermManagementPanel from "../components/TermManagementPanel";
+
 
 export default function AdminDashboard({ user, navigate }) {
   const [courses, setCourses] = useState([]);
@@ -523,8 +525,9 @@ const roleLabel = isAdmin
 
           </div>
         </div>
-  <AdvisorApprovalQueue onDecision={loadCourses} />
-  {isAdmin && <AdminGovernancePanel />}
+        {canAssignGrades && <TermManagementPanel />}
+         <AdvisorApprovalQueue onDecision={loadCourses} />
+          {isAdmin && <AdminGovernancePanel />}
       </section>
       
     </main>
