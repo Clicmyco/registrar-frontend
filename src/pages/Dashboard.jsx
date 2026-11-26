@@ -25,6 +25,7 @@ const gradePointsMap = {
 const statusBadge = {
   ENROLLED: "bg-emerald-50 text-emerald-700 border-emerald-200",
   PENDING_APPROVAL: "bg-amber-50 text-amber-700 border-amber-200",
+  WAITLISTED: "bg-purple-50 text-purple-700 border-purple-200",
   REJECTED: "bg-rose-50 text-rose-700 border-rose-200",
   DROPPED: "bg-slate-100 text-slate-600 border-slate-200",
 };
@@ -392,15 +393,22 @@ export default function Dashboard({ user, navigate }) {
                                 {course.credits}
                               </td>
                               <td className="py-3 px-2 text-center text-xs font-semibold">
-                                <span
-                                  className={`px-2 py-0.5 rounded-full ${
-                                    isFull
-                                      ? "bg-rose-100 text-rose-700"
-                                      : "bg-slate-100 text-slate-700"
-                                  }`}
-                                >
-                                  {enrolledCount} / {maxCapacity}
-                                </span>
+                                <div className="flex flex-col items-center gap-1">
+                                  <span
+                                    className={`px-2 py-0.5 rounded-full ${
+                                      isFull
+                                        ? "bg-rose-100 text-rose-700"
+                                        : "bg-slate-100 text-slate-700"
+                                    }`}
+                                  >
+                                    {enrolledCount} / {maxCapacity}
+                                  </span>
+                                  {(course.waitlistCount ?? 0) > 0 && (
+                                    <span className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-semibold">
+                                      {course.waitlistCount} waitlisted
+                                    </span>
+                                  )}
+                                </div>
                               </td>
                               {!isAdmin && (
                                 <td className="py-3 px-2 text-center">
@@ -451,6 +459,22 @@ export default function Dashboard({ user, navigate }) {
                                       {isBusy ? "..." : "Cancel"}
                                     </button>
                                   </div>
+                                ) : enrollment?.status === "WAITLISTED" ? (
+                                  <div className="inline-flex items-center gap-2">
+                                    <span
+                                      className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${statusBadge.WAITLISTED}`}
+                                    >
+                                      Waitlisted{enrollment.waitlistPosition ? ` (#${enrollment.waitlistPosition})` : ""}
+                                    </span>
+                                    <button
+                                      disabled={isBusy}
+                                      onClick={() => handleDrop(enrollment.enrollmentId, course.id)}
+                                      className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 disabled:opacity-50 transition"
+                                      title="Leave waitlist"
+                                    >
+                                      {isBusy ? "..." : "Leave"}
+                                    </button>
+                                  </div>
                                 ) : enrollment?.status === "REJECTED" ? (
                                   <div className="inline-flex items-center gap-2">
                                     <span
@@ -458,34 +482,38 @@ export default function Dashboard({ user, navigate }) {
                                     >
                                       Rejected
                                     </span>
-                                    {!isFull && (
-                                      <button
-                                        disabled={isBusy}
-                                        onClick={() => handleEnroll(course.id)}
-                                        className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 disabled:opacity-50 transition"
-                                      >
-                                        {isBusy ? "Requesting..." : "Re-Request"}
-                                      </button>
-                                    )}
-                                  </div>
-                                ) : enrollment?.status === "DROPPED" ? (
-                                  isFull ? (
-                                    <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-                                      Full
-                                    </span>
-                                  ) : (
                                     <button
                                       disabled={isBusy}
                                       onClick={() => handleEnroll(course.id)}
-                                      className="px-3 py-1 rounded-lg text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 disabled:opacity-50 transition"
+                                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold border disabled:opacity-50 transition ${
+                                        isFull
+                                          ? "bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100"
+                                          : "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
+                                      }`}
                                     >
-                                      {isBusy ? "Requesting..." : "Re-Enroll"}
+                                      {isBusy ? "Requesting..." : isFull ? "Join Waitlist" : "Re-Request"}
                                     </button>
-                                  )
+                                  </div>
+                                ) : enrollment?.status === "DROPPED" ? (
+                                  <button
+                                    disabled={isBusy}
+                                    onClick={() => handleEnroll(course.id)}
+                                    className={`px-3 py-1 rounded-lg text-xs font-semibold border disabled:opacity-50 transition ${
+                                      isFull
+                                        ? "bg-purple-600 text-white border-purple-600 hover:bg-purple-700"
+                                        : "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100"
+                                    }`}
+                                  >
+                                    {isBusy ? "Processing..." : isFull ? "Join Waitlist" : "Re-Enroll"}
+                                  </button>
                                 ) : isFull ? (
-                                  <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-                                    Full
-                                  </span>
+                                  <button
+                                    disabled={isBusy}
+                                    onClick={() => handleEnroll(course.id)}
+                                    className="px-3 py-1 rounded-lg text-xs font-semibold bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 transition"
+                                  >
+                                    {isBusy ? "Joining..." : "Join Waitlist"}
+                                  </button>
                                 ) : (
                                   <button
                                     disabled={isBusy}

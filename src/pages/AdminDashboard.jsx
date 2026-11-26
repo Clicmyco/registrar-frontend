@@ -567,15 +567,22 @@ export default function AdminDashboard({ user, navigate }) {
                               {course.credits}
                             </td>
                             <td className="py-3 px-2 text-center text-xs font-semibold">
-                              <span
-                                className={`px-2 py-0.5 rounded-full ${
-                                  enrolledCount >= capacity
-                                    ? "bg-rose-100 text-rose-700"
-                                    : "bg-slate-100 text-slate-700"
-                                }`}
-                              >
-                                {enrolledCount} / {capacity}
-                              </span>
+                              <div className="flex flex-col items-center gap-1">
+                                <span
+                                  className={`px-2 py-0.5 rounded-full ${
+                                    enrolledCount >= capacity
+                                      ? "bg-rose-100 text-rose-700"
+                                      : "bg-slate-100 text-slate-700"
+                                  }`}
+                                >
+                                  {enrolledCount} / {capacity}
+                                </span>
+                                {(course.waitlistCount ?? 0) > 0 && (
+                                  <span className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-semibold">
+                                    {course.waitlistCount} waitlisted
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="py-3 px-2 text-right">
                               <button
@@ -651,6 +658,8 @@ export default function AdminDashboard({ user, navigate }) {
                                   className={`px-2 py-0.5 rounded text-xs font-semibold ${
                                     isEnrolled
                                       ? "bg-emerald-100 text-emerald-800"
+                                      : entry.status === "WAITLISTED"
+                                      ? "bg-purple-100 text-purple-800"
                                       : "bg-slate-100 text-slate-500"
                                   }`}
                                 >
