@@ -70,8 +70,9 @@ export function resetPassword(email, code, newPassword) {
 }
 
 // --- Course Endpoints ---
-export function getAllCourses() {
-  return apiRequest("/courses", { method: "GET" });
+export function getAllCourses(termId = null) {
+  const query = termId ? `?termId=${termId}` : "";
+  return apiRequest(`/courses${query}`, { method: "GET" });
 }
 
 export function createCourse(courseData) {
@@ -226,3 +227,4 @@ export function updateAcademicTerm(termId, updates) {
     body: JSON.stringify(updates),
   });
 }
+

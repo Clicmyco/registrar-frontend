@@ -6,8 +6,12 @@ import {
   enrollInCourse,
   dropCourse,
   getActiveTerm,
+   getAllTerms,
 } from "../services/api";
 import OfficialTranscript from "../components/OfficialTranscript";
+ 
+//import { getActiveTerm } from "../services/api";
+
 
 const gradePointsMap = {
   A: 4.0,
@@ -31,6 +35,8 @@ export default function Dashboard({ user, navigate }) {
   const [courses, setCourses] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
   const [activeTerm, setActiveTerm] = useState(null);
+  const [terms, setTerms] = useState([]);
+  const [selectedTermId, setSelectedTermId] = useState("");
   const [simulatedGrades, setSimulatedGrades] = useState({});
   const [showTranscript, setShowTranscript] = useState(false);
 
@@ -41,28 +47,30 @@ export default function Dashboard({ user, navigate }) {
   const isAdmin = user?.roles?.includes("ROLE_ADMIN");
   const isStudent = user?.roles?.includes("ROLE_STUDENT");
 
-  const loadDashboardData = async () => {
-    if (!user) return;
-    setIsLoading(true);
-    try {
-      const [catalog, term, myEnrollments] = await Promise.all([
-        getAllCourses(),
-        getActiveTerm().catch(() => null),
-        isStudent ? getMyEnrollments() : Promise.resolve([]),
-      ]);
+  const loadDashboardData = async (termFilter = selectedTermId) => {
+  if (!user) return;
+  setIsLoading(true);
+  try {
+    const [catalog, active, termList, myEnrollments] = await Promise.all([
+      getAllCourses(termFilter || null),
+      getActiveTerm().catch(() => null),
+      getAllTerms().catch(() => []),
+      isStudent ? getMyEnrollments() : Promise.resolve([]),
+    ]);
 
-      setCourses(catalog);
-      setActiveTerm(term);
-      setEnrollments(myEnrollments);
-    } catch (err) {
-      setFeedback({
-        type: "error",
-        text: err.message || "Failed to load registrar data.",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    setCourses(catalog);
+    setActiveTerm(active);
+    setTerms(Array.isArray(termList) ? termList : []);
+    setEnrollments(myEnrollments);
+  } catch (err) {
+    setFeedback({
+      type: "error",
+      text: err.message || "Failed to load registrar data.",
+    });
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   useEffect(() => {
     loadDashboardData();
@@ -125,6 +133,14 @@ export default function Dashboard({ user, navigate }) {
 
   // --- MATH CALCULATIONS (Official + Simulated GPA) ---
   const activeEnrollments = enrollments.filter((e) => e.status === "ENROLLED");
+  const viewedTerm =
+  terms.find((t) => String(t.id) === String(selectedTermId)) || activeTerm;
+
+const termActiveEnrollments = activeEnrollments.filter((e) => {
+  if (!viewedTerm || !e.termCode) return true;
+  return e.termCode === viewedTerm.code;
+});
+const termCredits = termActiveEnrollments.reduce((sum, item) => sum + item.credits, 0);
   const totalCredits = activeEnrollments.reduce((sum, item) => sum + item.credits, 0);
 
   const gradedEnrollments = activeEnrollments.filter(
@@ -192,7 +208,7 @@ export default function Dashboard({ user, navigate }) {
               <div className="bg-slate-50 px-4 py-2 rounded-xl border border-slate-200">
                 <div className="text-xs text-slate-500">Enrolled Credits</div>
                 <div className="text-lg font-extrabold text-indigo-700">
-                  {totalCredits} / 19 Cr
+                  {termCredits} / 19 Cr
                 </div>
               </div>
               <div className="bg-indigo-50/70 px-4 py-2 rounded-xl border border-indigo-200">
@@ -273,23 +289,30 @@ export default function Dashboard({ user, navigate }) {
 
             {/* Course Catalog & Registration Table (7 Columns) */}
             <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">
-                    Semester Course Registration
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Live course catalog loaded from Spring Boot
-                  </p>
-                </div>
-                <button
-                  onClick={loadDashboardData}
-                  disabled={isLoading}
-                  className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-indigo-600 hover:bg-indigo-50 transition"
-                >
-                  <i className="fa-solid fa-rotate mr-1"></i>Refresh
-                </button>
-              </div>
+             <div className="flex items-center gap-2">
+  <select
+    value={selectedTermId}
+    onChange={(e) => {
+      setSelectedTermId(e.target.value);
+      loadDashboardData(e.target.value);
+    }}
+    className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 bg-white"
+  >
+    <option value="">All Semesters</option>
+    {terms.map((t) => (
+      <option key={t.id} value={t.id}>
+        {t.name} {t.active ? "(Active)" : ""}
+      </option>
+    ))}
+  </select>
+  <button
+    onClick={() => loadDashboardData()}
+    disabled={isLoading}
+    className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-indigo-600 hover:bg-indigo-50 transition"
+  >
+    <i className="fa-solid fa-rotate mr-1"></i>Refresh
+  </button>
+</div>
 
               {isLoading ? (
                 <div className="py-10 text-center text-xs text-slate-500">
@@ -327,6 +350,7 @@ export default function Dashboard({ user, navigate }) {
                             </td>
                             <td className="py-3 px-2 text-xs sm:text-sm font-medium text-slate-900">
                               <div>{course.title}</div>
+                              <div>{course.termCode}</div>
                               {course.prerequisiteCourseCode && (
                                 <span className="inline-block mt-0.5 px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-semibold">
                                   Prereq: {course.prerequisiteCourseCode}

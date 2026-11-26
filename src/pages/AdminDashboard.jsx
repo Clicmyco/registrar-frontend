@@ -1,10 +1,10 @@
 // src/pages/AdminDashboard.jsx
 import { useState, useEffect } from "react";
-import { getAllCourses, createCourse, getCourseRoster, assignGrade } from "../services/api";
+//import { getAllCourses, createCourse, getCourseRoster, assignGrade } from "../services/api";
 import AdminGovernancePanel from "../components/AdminGovernancePanel";
 import AdvisorApprovalQueue from "../components/AdvisorApprovalQueue";
 import TermManagementPanel from "../components/TermManagementPanel";
-
+import { getAllCourses, createCourse, getCourseRoster, assignGrade, getAllTerms } from "../services/api";
 
 export default function AdminDashboard({ user, navigate }) {
   const [courses, setCourses] = useState([]);
@@ -17,6 +17,11 @@ export default function AdminDashboard({ user, navigate }) {
   const [maxCapacity, setMaxCapacity] = useState("30");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [prerequisiteCourseId, setPrerequisiteCourseId] = useState("");
+  
+  const [terms, setTerms] = useState([]);
+  const [termId, setTermId] = useState("");
+  const [filterTermId, setFilterTermId] = useState("");
+
   // Roster Inspector State
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [roster, setRoster] = useState([]);
@@ -39,17 +44,26 @@ const roleLabel = isAdmin
   ? "Academic Registrar"
   : "Academic Advisor";
    
-  const loadCourses = async () => {
-    setIsLoadingCourses(true);
-    try {
-      const catalog = await getAllCourses();
-      setCourses(catalog);
-    } catch (err) {
-      setFeedback({ type: "error", text: err.message || "Failed to load course catalog." });
-    } finally {
-      setIsLoadingCourses(false);
+const loadCourses = async (selectedFilter = filterTermId) => {
+  setIsLoadingCourses(true);
+  try {
+    const [catalog, termList] = await Promise.all([
+      getAllCourses(selectedFilter || null),
+      getAllTerms().catch(() => []),
+    ]);
+    setCourses(catalog);
+    const safeTerms = Array.isArray(termList) ? termList : [];
+    setTerms(safeTerms);
+    if (!termId && safeTerms.length > 0) {
+      const active = safeTerms.find((t) => t.active);
+      if (active) setTermId(String(active.id));
     }
-  };
+  } catch (err) {
+    setFeedback({ type: "error", text: err.message || "Failed to load course catalog." });
+  } finally {
+    setIsLoadingCourses(false);
+  }
+};
 
   useEffect(() => {
     if (user) {
@@ -74,6 +88,9 @@ const roleLabel = isAdmin
   credits: Number(credits),
   maxCapacity: Number(maxCapacity) || 30,
   prerequisiteCourseId: prerequisiteCourseId ? Number(prerequisiteCourseId) : null,
+
+  termId: termId ? Number(termId) : null
+
 });
       setFeedback({
         type: "success",
@@ -325,6 +342,25 @@ const roleLabel = isAdmin
                                </option>
                                         ))}
                                   </select>
+
+                                  <div>
+  <label htmlFor="termId" className="block text-xs font-semibold text-slate-700 mb-1">
+    Academic Term
+  </label>
+  <select
+    id="termId"
+    value={termId}
+    onChange={(e) => setTermId(e.target.value)}
+    className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+  >
+    <option value="">Active Semester (Default)</option>
+    {terms.map((t) => (
+      <option key={t.id} value={t.id}>
+        {t.name} ({t.code})
+      </option>
+    ))}
+  </select>
+</div>
                   </div>
 
               <button
@@ -357,6 +393,31 @@ const roleLabel = isAdmin
                 >
                   <i className="fa-solid fa-rotate mr-1"></i>Refresh
                 </button>
+
+                <div className="flex items-center gap-2">
+  <select
+    value={filterTermId}
+    onChange={(e) => {
+      setFilterTermId(e.target.value);
+      loadCourses(e.target.value);
+    }}
+    className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 bg-white"
+  >
+    <option value="">All Terms</option>
+    {terms.map((t) => (
+      <option key={t.id} value={t.id}>
+        {t.name}
+      </option>
+    ))}
+  </select>
+  <button
+    onClick={() => loadCourses()}
+    disabled={isLoadingCourses}
+    className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-indigo-600 hover:bg-indigo-50 transition"
+  >
+    <i className="fa-solid fa-rotate mr-1"></i>Refresh
+  </button>
+          </div>
               </div>
 
               {isLoadingCourses ? (
@@ -391,8 +452,13 @@ const roleLabel = isAdmin
                               {course.courseCode}
                             </td>
                             <td className="py-3 px-2 font-medium text-slate-900">
-                              {course.title}
-                            </td>
+                               <div>{course.title}</div>
+                                {course.termCode && (
+                            <span className="inline-block mt-0.5 px-2 py-0.5 rounded bg-slate-100 text-slate-600 text-[11px] font-mono">
+                               {course.termCode}
+                              </span>
+                                )}
+                           </td>
                             <td className="py-3 px-2 text-center text-slate-600">
                               {course.credits}
                             </td>
