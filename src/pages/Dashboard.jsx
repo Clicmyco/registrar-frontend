@@ -6,12 +6,10 @@ import {
   enrollInCourse,
   dropCourse,
   getActiveTerm,
-   getAllTerms,
+  getAllTerms,
 } from "../services/api";
 import OfficialTranscript from "../components/OfficialTranscript";
- 
-//import { getActiveTerm } from "../services/api";
-
+import WeeklyTimetable from "../components/WeeklyTimetable";
 
 const gradePointsMap = {
   A: 4.0,
@@ -48,29 +46,29 @@ export default function Dashboard({ user, navigate }) {
   const isStudent = user?.roles?.includes("ROLE_STUDENT");
 
   const loadDashboardData = async (termFilter = selectedTermId) => {
-  if (!user) return;
-  setIsLoading(true);
-  try {
-    const [catalog, active, termList, myEnrollments] = await Promise.all([
-      getAllCourses(termFilter || null),
-      getActiveTerm().catch(() => null),
-      getAllTerms().catch(() => []),
-      isStudent ? getMyEnrollments() : Promise.resolve([]),
-    ]);
+    if (!user) return;
+    setIsLoading(true);
+    try {
+      const [catalog, active, termList, myEnrollments] = await Promise.all([
+        getAllCourses(termFilter || null),
+        getActiveTerm().catch(() => null),
+        getAllTerms().catch(() => []),
+        isStudent ? getMyEnrollments() : Promise.resolve([]),
+      ]);
 
-    setCourses(catalog);
-    setActiveTerm(active);
-    setTerms(Array.isArray(termList) ? termList : []);
-    setEnrollments(myEnrollments);
-  } catch (err) {
-    setFeedback({
-      type: "error",
-      text: err.message || "Failed to load registrar data.",
-    });
-  } finally {
-    setIsLoading(false);
-  }
-};
+      setCourses(catalog);
+      setActiveTerm(active);
+      setTerms(Array.isArray(termList) ? termList : []);
+      setEnrollments(myEnrollments);
+    } catch (err) {
+      setFeedback({
+        type: "error",
+        text: err.message || "Failed to load registrar data.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     loadDashboardData();
@@ -134,13 +132,13 @@ export default function Dashboard({ user, navigate }) {
   // --- MATH CALCULATIONS (Official + Simulated GPA) ---
   const activeEnrollments = enrollments.filter((e) => e.status === "ENROLLED");
   const viewedTerm =
-  terms.find((t) => String(t.id) === String(selectedTermId)) || activeTerm;
+    terms.find((t) => String(t.id) === String(selectedTermId)) || activeTerm;
 
-const termActiveEnrollments = activeEnrollments.filter((e) => {
-  if (!viewedTerm || !e.termCode) return true;
-  return e.termCode === viewedTerm.code;
-});
-const termCredits = termActiveEnrollments.reduce((sum, item) => sum + item.credits, 0);
+  const termActiveEnrollments = activeEnrollments.filter((e) => {
+    if (!viewedTerm || !e.termCode) return true;
+    return e.termCode === viewedTerm.code;
+  });
+  const termCredits = termActiveEnrollments.reduce((sum, item) => sum + item.credits, 0);
   const totalCredits = activeEnrollments.reduce((sum, item) => sum + item.credits, 0);
 
   const gradedEnrollments = activeEnrollments.filter(
@@ -281,172 +279,210 @@ const termCredits = termActiveEnrollments.reduce((sum, item) => sum + item.credi
           </div>
         )}
 
-        {/* Main Workspace: Official Transcript OR Registration + GPA Simulator */}
+        {/* Main Workspace: Official Transcript OR Registration + GPA Simulator + Weekly Timetable */}
         {showTranscript && !isAdmin ? (
           <OfficialTranscript onBack={() => setShowTranscript(false)} />
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-            {/* Course Catalog & Registration Table (7 Columns) */}
-            <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
-             <div className="flex items-center gap-2">
-  <select
-    value={selectedTermId}
-    onChange={(e) => {
-      setSelectedTermId(e.target.value);
-      loadDashboardData(e.target.value);
-    }}
-    className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 bg-white"
-  >
-    <option value="">All Semesters</option>
-    {terms.map((t) => (
-      <option key={t.id} value={t.id}>
-        {t.name} {t.active ? "(Active)" : ""}
-      </option>
-    ))}
-  </select>
-  <button
-    onClick={() => loadDashboardData()}
-    disabled={isLoading}
-    className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-indigo-600 hover:bg-indigo-50 transition"
-  >
-    <i className="fa-solid fa-rotate mr-1"></i>Refresh
-  </button>
-</div>
+              {/* Course Catalog & Registration Table (7 Columns) */}
+              <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">
+                      Semester Course Registration
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Live course catalog loaded from Spring Boot
+                    </p>
+                  </div>
 
-              {isLoading ? (
-                <div className="py-10 text-center text-xs text-slate-500">
-                  Loading courses from server...
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={selectedTermId}
+                      onChange={(e) => {
+                        setSelectedTermId(e.target.value);
+                        loadDashboardData(e.target.value);
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 bg-white"
+                    >
+                      <option value="">All Semesters</option>
+                      {terms.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name} {t.active ? "(Active)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => loadDashboardData()}
+                      disabled={isLoading}
+                      className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-indigo-600 hover:bg-indigo-50 transition"
+                    >
+                      <i className="fa-solid fa-rotate mr-1"></i>Refresh
+                    </button>
+                  </div>
                 </div>
-              ) : courses.length === 0 ? (
-                <div className="py-10 text-center text-xs text-slate-500">
-                  No courses found in the database yet. Sign in as an Admin to create one!
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="border-b border-slate-200 text-xs uppercase text-slate-500">
-                        <th className="py-2.5 px-2">Code</th>
-                        <th className="py-2.5 px-2">Course Title</th>
-                        <th className="py-2.5 px-2 text-center">Cr.</th>
-                        <th className="py-2.5 px-2 text-center">Seats</th>
-                        {!isAdmin && <th className="py-2.5 px-2 text-center">Grade</th>}
-                        <th className="py-2.5 px-2 text-right">Status / Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-sm">
-                      {courses.map((course) => {
-                        const enrollment = enrollments.find((e) => e.courseId === course.id);
-                        const isBusy = actionLoadingId === course.id;
-                        const enrolledCount = course.enrolledCount ?? 0;
-                        const maxCapacity = course.maxCapacity ?? 30;
-                        const isFull = enrolledCount >= maxCapacity;
 
-                        return (
-                          <tr key={course.id} className="hover:bg-slate-50 transition">
-                            <td className="py-3 px-2 font-mono text-xs font-semibold text-slate-700">
-                              {course.courseCode}
-                            </td>
-                            <td className="py-3 px-2 text-xs sm:text-sm font-medium text-slate-900">
-                              <div>{course.title}</div>
-                              <div>{course.termCode}</div>
-                              {course.prerequisiteCourseCode && (
-                                <span className="inline-block mt-0.5 px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-semibold">
-                                  Prereq: {course.prerequisiteCourseCode}
-                                </span>
-                              )}
-                              {enrollment?.advisorNote && (
-                                <p className="text-xs font-normal text-slate-500 mt-0.5">
-                                  Advisor note:{" "}
-                                  <span className="font-medium text-slate-700">
-                                    {enrollment.advisorNote}
-                                  </span>
-                                </p>
-                              )}
-                            </td>
-                            <td className="py-3 px-2 text-center text-xs font-semibold text-slate-600">
-                              {course.credits}
-                            </td>
-                            <td className="py-3 px-2 text-center text-xs font-semibold">
-                              <span
-                                className={`px-2 py-0.5 rounded-full ${
-                                  isFull
-                                    ? "bg-rose-100 text-rose-700"
-                                    : "bg-slate-100 text-slate-700"
-                                }`}
-                              >
-                                {enrolledCount} / {maxCapacity}
-                              </span>
-                            </td>
-                            {!isAdmin && (
-                              <td className="py-3 px-2 text-center">
-                                {enrollment?.status === "ENROLLED" ? (
-                                  enrollment.grade ? (
-                                    <span className="px-2 py-0.5 rounded-md text-xs font-bold bg-indigo-100 text-indigo-800">
-                                      {enrollment.grade}
+                {isLoading ? (
+                  <div className="py-10 text-center text-xs text-slate-500">
+                    Loading courses from server...
+                  </div>
+                ) : courses.length === 0 ? (
+                  <div className="py-10 text-center text-xs text-slate-500">
+                    No courses found in the database yet. Sign in as an Admin to create one!
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-200 text-xs uppercase text-slate-500">
+                          <th className="py-2.5 px-2">Code</th>
+                          <th className="py-2.5 px-2">Course Title</th>
+                          <th className="py-2.5 px-2 text-center">Cr.</th>
+                          <th className="py-2.5 px-2 text-center">Seats</th>
+                          {!isAdmin && <th className="py-2.5 px-2 text-center">Grade</th>}
+                          <th className="py-2.5 px-2 text-right">Status / Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-sm">
+                        {courses.map((course) => {
+                          const enrollment = enrollments.find((e) => e.courseId === course.id);
+                          const isBusy = actionLoadingId === course.id;
+                          const enrolledCount = course.enrolledCount ?? 0;
+                          const maxCapacity = course.maxCapacity ?? 30;
+                          const isFull = enrolledCount >= maxCapacity;
+
+                          return (
+                            <tr key={course.id} className="hover:bg-slate-50 transition">
+                              <td className="py-3 px-2 font-mono text-xs font-semibold text-slate-700">
+                                {course.courseCode}
+                              </td>
+                              <td className="py-3 px-2 text-xs sm:text-sm font-medium text-slate-900">
+                                <div>{course.title}</div>
+                                {course.meetingDays && course.startTime && course.endTime && (
+                                  <div className="text-[11px] text-indigo-700 font-medium mt-0.5">
+                                    <i className="fa-regular fa-clock mr-1"></i>
+                                    {course.meetingDays} • {course.startTime.slice(0, 5)}–{course.endTime.slice(0, 5)}
+                                    {course.room ? ` (${course.room})` : ""}
+                                  </div>
+                                )}
+                                <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                  {course.termCode && (
+                                    <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-600 text-[11px] font-mono">
+                                      {course.termCode}
                                     </span>
-                                  ) : (
-                                    <span className="text-xs text-slate-400 italic">In Progress</span>
-                                  )
-                                ) : (
-                                  <span className="text-xs text-slate-300">—</span>
+                                  )}
+                                  {course.prerequisiteCourseCode && (
+                                    <span className="inline-block px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-semibold">
+                                      Prereq: {course.prerequisiteCourseCode}
+                                    </span>
+                                  )}
+                                </div>
+                                {enrollment?.advisorNote && (
+                                  <p className="text-xs font-normal text-slate-500 mt-0.5">
+                                    Advisor note:{" "}
+                                    <span className="font-medium text-slate-700">
+                                      {enrollment.advisorNote}
+                                    </span>
+                                  </p>
                                 )}
                               </td>
-                            )}
-                            <td className="py-3 px-2 text-right">
-                              {isAdmin ? (
-                                <span className="text-xs text-slate-400">Catalog Item</span>
-                              ) : enrollment?.status === "ENROLLED" ? (
-                                <div className="inline-flex items-center gap-2">
-                                  <span
-                                    className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${statusBadge.ENROLLED}`}
-                                  >
-                                    Enrolled
-                                  </span>
-                                  <button
-                                    disabled={isBusy}
-                                    onClick={() => handleDrop(enrollment.enrollmentId, course.id)}
-                                    className="px-3 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 disabled:opacity-50 transition"
-                                  >
-                                    {isBusy ? "Dropping..." : "Drop"}
-                                  </button>
-                                </div>
-                              ) : enrollment?.status === "PENDING_APPROVAL" ? (
-                                <div className="inline-flex items-center gap-2">
-                                  <span
-                                    className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${statusBadge.PENDING_APPROVAL}`}
-                                  >
-                                    Pending Approval
-                                  </span>
-                                  <button
-                                    disabled={isBusy}
-                                    onClick={() => handleDrop(enrollment.enrollmentId, course.id)}
-                                    className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 disabled:opacity-50 transition"
-                                    title="Cancel pending request"
-                                  >
-                                    {isBusy ? "..." : "Cancel"}
-                                  </button>
-                                </div>
-                              ) : enrollment?.status === "REJECTED" ? (
-                                <div className="inline-flex items-center gap-2">
-                                  <span
-                                    className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${statusBadge.REJECTED}`}
-                                  >
-                                    Rejected
-                                  </span>
-                                  {!isFull && (
+                              <td className="py-3 px-2 text-center text-xs font-semibold text-slate-600">
+                                {course.credits}
+                              </td>
+                              <td className="py-3 px-2 text-center text-xs font-semibold">
+                                <span
+                                  className={`px-2 py-0.5 rounded-full ${
+                                    isFull
+                                      ? "bg-rose-100 text-rose-700"
+                                      : "bg-slate-100 text-slate-700"
+                                  }`}
+                                >
+                                  {enrolledCount} / {maxCapacity}
+                                </span>
+                              </td>
+                              {!isAdmin && (
+                                <td className="py-3 px-2 text-center">
+                                  {enrollment?.status === "ENROLLED" ? (
+                                    enrollment.grade ? (
+                                      <span className="px-2 py-0.5 rounded-md text-xs font-bold bg-indigo-100 text-indigo-800">
+                                        {enrollment.grade}
+                                      </span>
+                                    ) : (
+                                      <span className="text-xs text-slate-400 italic">In Progress</span>
+                                    )
+                                  ) : (
+                                    <span className="text-xs text-slate-300">—</span>
+                                  )}
+                                </td>
+                              )}
+                              <td className="py-3 px-2 text-right">
+                                {isAdmin ? (
+                                  <span className="text-xs text-slate-400">Catalog Item</span>
+                                ) : enrollment?.status === "ENROLLED" ? (
+                                  <div className="inline-flex items-center gap-2">
+                                    <span
+                                      className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${statusBadge.ENROLLED}`}
+                                    >
+                                      Enrolled
+                                    </span>
+                                    <button
+                                      disabled={isBusy}
+                                      onClick={() => handleDrop(enrollment.enrollmentId, course.id)}
+                                      className="px-3 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 disabled:opacity-50 transition"
+                                    >
+                                      {isBusy ? "Dropping..." : "Drop"}
+                                    </button>
+                                  </div>
+                                ) : enrollment?.status === "PENDING_APPROVAL" ? (
+                                  <div className="inline-flex items-center gap-2">
+                                    <span
+                                      className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${statusBadge.PENDING_APPROVAL}`}
+                                    >
+                                      Pending Approval
+                                    </span>
+                                    <button
+                                      disabled={isBusy}
+                                      onClick={() => handleDrop(enrollment.enrollmentId, course.id)}
+                                      className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 disabled:opacity-50 transition"
+                                      title="Cancel pending request"
+                                    >
+                                      {isBusy ? "..." : "Cancel"}
+                                    </button>
+                                  </div>
+                                ) : enrollment?.status === "REJECTED" ? (
+                                  <div className="inline-flex items-center gap-2">
+                                    <span
+                                      className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${statusBadge.REJECTED}`}
+                                    >
+                                      Rejected
+                                    </span>
+                                    {!isFull && (
+                                      <button
+                                        disabled={isBusy}
+                                        onClick={() => handleEnroll(course.id)}
+                                        className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 disabled:opacity-50 transition"
+                                      >
+                                        {isBusy ? "Requesting..." : "Re-Request"}
+                                      </button>
+                                    )}
+                                  </div>
+                                ) : enrollment?.status === "DROPPED" ? (
+                                  isFull ? (
+                                    <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                                      Full
+                                    </span>
+                                  ) : (
                                     <button
                                       disabled={isBusy}
                                       onClick={() => handleEnroll(course.id)}
-                                      className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 disabled:opacity-50 transition"
+                                      className="px-3 py-1 rounded-lg text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 disabled:opacity-50 transition"
                                     >
-                                      {isBusy ? "Requesting..." : "Re-Request"}
+                                      {isBusy ? "Requesting..." : "Re-Enroll"}
                                     </button>
-                                  )}
-                                </div>
-                              ) : enrollment?.status === "DROPPED" ? (
-                                isFull ? (
+                                  )
+                                ) : isFull ? (
                                   <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
                                     Full
                                   </span>
@@ -454,123 +490,121 @@ const termCredits = termActiveEnrollments.reduce((sum, item) => sum + item.credi
                                   <button
                                     disabled={isBusy}
                                     onClick={() => handleEnroll(course.id)}
-                                    className="px-3 py-1 rounded-lg text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 disabled:opacity-50 transition"
+                                    className="px-3 py-1 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition"
                                   >
-                                    {isBusy ? "Requesting..." : "Re-Enroll"}
+                                    {isBusy ? "Requesting..." : "Request Course"}
                                   </button>
-                                )
-                              ) : isFull ? (
-                                <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-                                  Full
-                                </span>
-                              ) : (
-                                <button
-                                  disabled={isBusy}
-                                  onClick={() => handleEnroll(course.id)}
-                                  className="px-3 py-1 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition"
-                                >
-                                  {isBusy ? "Requesting..." : "Request Course"}
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
 
-            {/* Official Grades & Interactive GPA Simulator Panel (5 Columns) */}
-            <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4 flex flex-col justify-between">
-              <div>
+              {/* Official Grades & Interactive GPA Simulator Panel (5 Columns) */}
+              <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4 flex flex-col justify-between">
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">
-                    Official Grades &amp; GPA Simulator
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Official Registrar grades lock in automatically; adjust in-progress courses to project your term GPA
-                  </p>
-                </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">
+                      Official Grades &amp; GPA Simulator
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Official Registrar grades lock in automatically; adjust in-progress courses to project your term GPA
+                    </p>
+                  </div>
 
-                <div className="space-y-3 mt-4">
-                  {activeEnrollments.length === 0 ? (
-                    <div className="p-4 rounded-xl bg-slate-50 text-xs text-slate-500 text-center">
-                      No active enrolled courses. Enroll in a course on the left to track grades.
-                    </div>
-                  ) : (
-                    activeEnrollments.map((item) => {
-                      const hasOfficialGrade =
-                        item.grade && gradePointsMap[item.grade] !== undefined;
-                      const currentGrade = hasOfficialGrade
-                        ? item.grade
-                        : simulatedGrades[item.courseId] || "A";
+                  <div className="space-y-3 mt-4">
+                    {activeEnrollments.length === 0 ? (
+                      <div className="p-4 rounded-xl bg-slate-50 text-xs text-slate-500 text-center">
+                        No active enrolled courses. Enroll in a course on the left to track grades.
+                      </div>
+                    ) : (
+                      activeEnrollments.map((item) => {
+                        const hasOfficialGrade =
+                          item.grade && gradePointsMap[item.grade] !== undefined;
+                        const currentGrade = hasOfficialGrade
+                          ? item.grade
+                          : simulatedGrades[item.courseId] || "A";
 
-                      return (
-                        <div
-                          key={item.enrollmentId}
-                          className={`p-3 rounded-xl border flex items-center justify-between gap-2 ${
-                            hasOfficialGrade
-                              ? "bg-indigo-50/50 border-indigo-200"
-                              : "bg-slate-50 border-slate-200"
-                          }`}
-                        >
-                          <div>
-                            <div className="text-xs font-bold text-slate-800">
-                              {item.courseCode} — {item.courseTitle}
+                        return (
+                          <div
+                            key={item.enrollmentId}
+                            className={`p-3 rounded-xl border flex items-center justify-between gap-2 ${
+                              hasOfficialGrade
+                                ? "bg-indigo-50/50 border-indigo-200"
+                                : "bg-slate-50 border-slate-200"
+                            }`}
+                          >
+                            <div>
+                              <div className="text-xs font-bold text-slate-800">
+                                {item.courseCode} — {item.courseTitle}
+                              </div>
+                              <div className="text-xs text-slate-500">
+                                {item.credits} Credit Hours •{" "}
+                                {hasOfficialGrade ? (
+                                  <span className="text-indigo-700 font-semibold">Official</span>
+                                ) : (
+                                  <span>Simulated</span>
+                                )}
+                              </div>
                             </div>
-                            <div className="text-xs text-slate-500">
-                              {item.credits} Credit Hours •{" "}
-                              {hasOfficialGrade ? (
-                                <span className="text-indigo-700 font-semibold">Official</span>
-                              ) : (
-                                <span>Simulated</span>
-                              )}
-                            </div>
+
+                            {hasOfficialGrade ? (
+                              <span className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-xs font-bold">
+                                {item.grade} ({gradePointsMap[item.grade].toFixed(2)})
+                              </span>
+                            ) : (
+                              <select
+                                value={currentGrade}
+                                onChange={(e) => updateCourseGrade(item.courseId, e.target.value)}
+                                className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-indigo-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              >
+                                {Object.keys(gradePointsMap).map((gradeLetter) => (
+                                  <option key={gradeLetter} value={gradeLetter}>
+                                    {gradeLetter} ({gradePointsMap[gradeLetter].toFixed(2)})
+                                  </option>
+                                ))}
+                              </select>
+                            )}
                           </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
 
-                          {hasOfficialGrade ? (
-                            <span className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-xs font-bold">
-                              {item.grade} ({gradePointsMap[item.grade].toFixed(2)})
-                            </span>
-                          ) : (
-                            <select
-                              value={currentGrade}
-                              onChange={(e) => updateCourseGrade(item.courseId, e.target.value)}
-                              className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-indigo-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                            >
-                              {Object.keys(gradePointsMap).map((gradeLetter) => (
-                                <option key={gradeLetter} value={gradeLetter}>
-                                  {gradeLetter} ({gradePointsMap[gradeLetter].toFixed(2)})
-                                </option>
-                              ))}
-                            </select>
-                          )}
-                        </div>
-                      );
-                    })
-                  )}
+                <div className="pt-3 mt-4 border-t border-slate-200 space-y-1.5 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-slate-600">Official Quality Points:</span>
+                    <span className="font-bold text-indigo-900">
+                      {officialQualityPoints.toFixed(2)} pts ({gradedCredits} Cr)
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-slate-600">Projected Quality Points:</span>
+                    <span className="font-bold text-slate-900">
+                      {totalQualityPoints.toFixed(2)} pts ({totalCredits} Cr)
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              <div className="pt-3 mt-4 border-t border-slate-200 space-y-1.5 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-slate-600">Official Quality Points:</span>
-                  <span className="font-bold text-indigo-900">
-                    {officialQualityPoints.toFixed(2)} pts ({gradedCredits} Cr)
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-slate-600">Projected Quality Points:</span>
-                  <span className="font-bold text-slate-900">
-                    {totalQualityPoints.toFixed(2)} pts ({totalCredits} Cr)
-                  </span>
-                </div>
-              </div>
             </div>
 
-          </div>
+            {!isAdmin && (
+              <WeeklyTimetable
+                enrollments={enrollments.filter((e) => {
+                  if (!selectedTermId || !viewedTerm || !e.termCode) return true;
+                  return e.termCode === viewedTerm.code;
+                })}
+                termLabel={selectedTermId ? viewedTerm?.name : activeTerm?.name}
+              />
+            )}
+          </>
         )}
       </section>
     </main>
