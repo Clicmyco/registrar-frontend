@@ -82,6 +82,17 @@ export function createCourse(courseData) {
   });
 }
 
+export function getMyTeachingCourses() {
+  return apiRequest("/courses/my-teaching", { method: "GET" });
+}
+
+export function assignCourseInstructor(courseId, instructorId) {
+  return apiRequest(`/courses/${courseId}/instructor`, {
+    method: "PUT",
+    body: JSON.stringify({ instructorId }),
+  });
+}
+
 // --- Enrollment Endpoints ---
 export function enrollInCourse(courseId) {
   return apiRequest("/enrollments", {
@@ -101,6 +112,7 @@ export function dropCourse(enrollmentId) {
 export function getCourseRoster(courseId) {
   return apiRequest(`/enrollments/course/${courseId}`, { method: "GET" });
 }
+
 // --- Session & JWT Helpers ---
 export function decodeToken(token) {
   try {
@@ -189,6 +201,7 @@ export function updateUserStatus(userId, active) {
 export function getAuditLogs() {
   return apiRequest("/admin/audit-logs", { method: "GET" });
 }
+
 // --- Advisor / Registrar Approval Workflow ---
 export function getPendingEnrollments() {
   return apiRequest("/enrollments/pending", { method: "GET" });
@@ -205,6 +218,7 @@ export function reviewEnrollment(enrollmentId, approve, advisorNote = "") {
 export function getMyTranscript() {
   return apiRequest("/enrollments/transcript", { method: "GET" });
 }
+
 // --- Academic Terms & Registration Windows ---
 export function getActiveTerm() {
   return apiRequest("/terms/active", { method: "GET" });
@@ -227,4 +241,3 @@ export function updateAcademicTerm(termId, updates) {
     body: JSON.stringify(updates),
   });
 }
-

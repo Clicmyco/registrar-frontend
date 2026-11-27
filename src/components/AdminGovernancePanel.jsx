@@ -11,6 +11,7 @@ const ALL_ROLES = [
   "ROLE_ADVISOR",
   "ROLE_REGISTRAR",
   "ROLE_ADMIN",
+  "ROLE_INSTRUCTOR",
 ];
 
 export default function AdminGovernancePanel() {

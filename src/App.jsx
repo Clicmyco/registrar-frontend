@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import AuthPreview from "./pages/AuthPreview";
 import Footer from "./components/Footer";
 import AdminDashboard from "./pages/AdminDashboard";
+import InstructorDashboard from "./pages/InstructorDashboard";
 import { getStoredUser, logoutUser } from "./services/api";
 
 export default function App() {
@@ -18,25 +19,33 @@ export default function App() {
 
   // Initialize user session from localStorage if a valid JWT already exists
   const [user, setUser] = useState(() => getStoredUser());
+
   const isStaff = (u) =>
-  u?.roles?.some((r) =>
-    ["ROLE_ADMIN", "ROLE_REGISTRAR", "ROLE_ADVISOR"].includes(r)
-  );
+    u?.roles?.some((r) =>
+      ["ROLE_ADMIN", "ROLE_REGISTRAR", "ROLE_ADVISOR"].includes(r)
+    );
+
+  const isInstructor = (u) => u?.roles?.includes("ROLE_INSTRUCTOR");
 
   const handleLoginSuccess = (loggedInUser) => {
     setUser(loggedInUser);
-    // Route Admins to the Admin panel (we'll build it shortly) and Students to Dashboard
-    if (loggedInUser?.roles?.includes("ROLE_ADMIN")) {
-      setCurrentView("dashboard");
-    } else {
-      setCurrentView("dashboard");
-    }
+    setCurrentView("dashboard");
   };
 
   const handleLogout = () => {
     logoutUser();
     setUser(null);
     setCurrentView("home");
+  };
+
+  const renderDashboardView = () => {
+    if (isStaff(user)) {
+      return <AdminDashboard user={user} navigate={setCurrentView} />;
+    }
+    if (isInstructor(user)) {
+      return <InstructorDashboard user={user} navigate={setCurrentView} />;
+    }
+    return <Dashboard user={user} navigate={setCurrentView} />;
   };
 
   const renderView = () => {
@@ -50,11 +59,9 @@ export default function App() {
       case "services":
         return <Services />;
       case "dashboard":
-  return isStaff(user) ? (
-    <AdminDashboard user={user} navigate={setCurrentView} />
-  ) : (
-    <Dashboard user={user} navigate={setCurrentView} />
-  );
+        return renderDashboardView();
+      case "instructor-dashboard":
+        return <InstructorDashboard user={user} navigate={setCurrentView} />;
       case "auth-preview":
         return (
           <AuthPreview

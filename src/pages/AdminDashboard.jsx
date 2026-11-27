@@ -6,6 +6,8 @@ import {
   getCourseRoster,
   assignGrade,
   getAllTerms,
+  getAdminUsers,
+  assignCourseInstructor,
 } from "../services/api";
 import AdminGovernancePanel from "../components/AdminGovernancePanel";
 import AdvisorApprovalQueue from "../components/AdvisorApprovalQueue";
@@ -22,6 +24,9 @@ export default function AdminDashboard({ user, navigate }) {
   const [maxCapacity, setMaxCapacity] = useState("30");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [prerequisiteCourseId, setPrerequisiteCourseId] = useState("");
+  const [instructorId, setInstructorId] = useState("");
+  const [instructors, setInstructors] = useState([]);
+  const [assigningInstructorCourseId, setAssigningInstructorCourseId] = useState(null);
 
   const [terms, setTerms] = useState([]);
   const [termId, setTermId] = useState("");
@@ -63,9 +68,10 @@ export default function AdminDashboard({ user, navigate }) {
   const loadCourses = async (selectedFilter = filterTermId) => {
     setIsLoadingCourses(true);
     try {
-      const [catalog, termList] = await Promise.all([
+      const [catalog, termList, usersList] = await Promise.all([
         getAllCourses(selectedFilter || null),
         getAllTerms().catch(() => []),
+        canAssignGrades ? getAdminUsers().catch(() => []) : Promise.resolve([]),
       ]);
       setCourses(catalog);
       const safeTerms = Array.isArray(termList) ? termList : [];
@@ -74,6 +80,11 @@ export default function AdminDashboard({ user, navigate }) {
         const active = safeTerms.find((t) => t.active);
         if (active) setTermId(String(active.id));
       }
+
+      const safeUsers = Array.isArray(usersList) ? usersList : [];
+      setInstructors(
+        safeUsers.filter((u) => u.active && u.roles?.includes("ROLE_INSTRUCTOR"))
+      );
     } catch (err) {
       setFeedback({ type: "error", text: err.message || "Failed to load course catalog." });
     } finally {
@@ -106,6 +117,7 @@ export default function AdminDashboard({ user, navigate }) {
         maxCapacity: Number(maxCapacity) || 30,
         prerequisiteCourseId: prerequisiteCourseId ? Number(prerequisiteCourseId) : null,
         termId: termId ? Number(termId) : null,
+        instructorId: instructorId ? Number(instructorId) : null,
         meetingDays: selectedDays.length > 0 ? selectedDays.join(",") : null,
         startTime: startTime || null,
         endTime: endTime || null,
@@ -122,6 +134,7 @@ export default function AdminDashboard({ user, navigate }) {
       setCredits("3");
       setMaxCapacity("30");
       setPrerequisiteCourseId("");
+      setInstructorId("");
       setSelectedDays([]);
       setStartTime("");
       setEndTime("");
@@ -132,6 +145,31 @@ export default function AdminDashboard({ user, navigate }) {
       setFeedback({ type: "error", text: err.message || "Failed to create course." });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleAssignInstructor = async (course, newInstructorId) => {
+    setAssigningInstructorCourseId(course.id);
+    setFeedback(null);
+    try {
+      const updated = await assignCourseInstructor(
+        course.id,
+        newInstructorId ? Number(newInstructorId) : null
+      );
+      setCourses((prev) => prev.map((c) => (c.id === course.id ? updated : c)));
+      setFeedback({
+        type: "success",
+        text: updated.instructorName || updated.instructorEmail
+          ? `Assigned ${updated.instructorName || updated.instructorEmail} to ${course.courseCode}.`
+          : `Unassigned instructor from ${course.courseCode}.`,
+      });
+    } catch (err) {
+      setFeedback({
+        type: "error",
+        text: err.message || "Failed to assign instructor.",
+      });
+    } finally {
+      setAssigningInstructorCourseId(null);
     }
   };
 
@@ -370,6 +408,25 @@ export default function AdminDashboard({ user, navigate }) {
                 </div>
 
                 <div>
+                  <label htmlFor="instructorId" className="block text-xs font-semibold text-slate-700 mb-1">
+                    Assigned Instructor <span className="text-slate-400 font-normal">(Optional)</span>
+                  </label>
+                  <select
+                    id="instructorId"
+                    value={instructorId}
+                    onChange={(e) => setInstructorId(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">Unassigned (TBA)</option>
+                    {instructors.map((inst) => (
+                      <option key={inst.id} value={inst.id}>
+                        {inst.fullName || inst.email} ({inst.email})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
                   <label htmlFor="termId" className="block text-xs font-semibold text-slate-700 mb-1">
                     Academic Term
                   </label>
@@ -524,6 +581,7 @@ export default function AdminDashboard({ user, navigate }) {
                       <tr className="border-b border-slate-200 text-xs uppercase text-slate-500">
                         <th className="py-2.5 px-2">Code</th>
                         <th className="py-2.5 px-2">Course Title</th>
+                        <th className="py-2.5 px-2">Instructor</th>
                         <th className="py-2.5 px-2 text-center">Cr.</th>
                         <th className="py-2.5 px-2 text-center">Seats</th>
                         <th className="py-2.5 px-2 text-right">Action</th>
@@ -534,6 +592,8 @@ export default function AdminDashboard({ user, navigate }) {
                         const isSelected = selectedCourse?.id === course.id;
                         const enrolledCount = course.enrolledCount ?? 0;
                         const capacity = course.maxCapacity ?? 30;
+                        const isAssigning = assigningInstructorCourseId === course.id;
+
                         return (
                           <tr
                             key={course.id}
@@ -562,6 +622,27 @@ export default function AdminDashboard({ user, navigate }) {
                                   </span>
                                 )}
                               </div>
+                            </td>
+                            <td className="py-3 px-2 text-xs">
+                              {canAssignGrades ? (
+                                <select
+                                  value={course.instructorId || ""}
+                                  disabled={isAssigning}
+                                  onChange={(e) => handleAssignInstructor(course, e.target.value)}
+                                  className="max-w-[165px] px-2 py-1 rounded-lg border border-slate-200 bg-white text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-50"
+                                >
+                                  <option value="">Unassigned (TBA)</option>
+                                  {instructors.map((inst) => (
+                                    <option key={inst.id} value={inst.id}>
+                                      {inst.fullName || inst.email}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <span className="text-slate-600">
+                                  {course.instructorName || course.instructorEmail || "TBA"}
+                                </span>
+                              )}
                             </td>
                             <td className="py-3 px-2 text-center text-slate-600">
                               {course.credits}

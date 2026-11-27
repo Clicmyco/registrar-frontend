@@ -379,6 +379,12 @@ export default function Dashboard({ user, navigate }) {
                                       Prereq: {course.prerequisiteCourseCode}
                                     </span>
                                   )}
+                                  {(course.instructorName || course.instructorEmail) && (
+                                 <span className="inline-block px-2 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200 text-[11px] font-medium">
+                                  <i className="fa-solid fa-chalkboard-user mr-1"></i>
+                                      {course.instructorName || course.instructorEmail}
+                                  </span>
+                                     )}
                                 </div>
                                 {enrollment?.advisorNote && (
                                   <p className="text-xs font-normal text-slate-500 mt-0.5">
