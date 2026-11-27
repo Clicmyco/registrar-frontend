@@ -1,6 +1,7 @@
 // Reads VITE_API_URL from .env (or Vercel/Netlify env vars) and strips any trailing slash
-const API_ORIGIN = (import.meta.env.VITE_API_URL || "http://localhost:8081").replace(/\/+$/, "");
-const BASE_URL = `${API_ORIGIN}/api`;
+// Reads VITE_API_URL from .env (or Docker build args) without duplicating /api
+const RAW_API_URL = (import.meta.env.VITE_API_URL || "http://localhost:8081").replace(/\/+$/, "");
+const BASE_URL = RAW_API_URL.endsWith("/api") ? RAW_API_URL : `${RAW_API_URL}/api`;
 
 // Reusable helper that handles headers, JWT injection, and errors for every call
 async function apiRequest(endpoint, options = {}) {
