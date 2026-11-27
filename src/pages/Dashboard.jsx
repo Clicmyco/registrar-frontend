@@ -9,6 +9,7 @@ import {
   getAllTerms,
 } from "../services/api";
 import OfficialTranscript from "../components/OfficialTranscript";
+import DegreeAuditPanel from "../components/DegreeAuditPanel";
 import WeeklyTimetable from "../components/WeeklyTimetable";
 
 const gradePointsMap = {
@@ -637,7 +638,9 @@ export default function Dashboard({ user, navigate }) {
                 })}
                 termLabel={selectedTermId ? viewedTerm?.name : activeTerm?.name}
               />
+              
             )}
+            <DegreeAuditPanel refreshTrigger="{enrollments.length}"/>
           </>
         )}
       </section>

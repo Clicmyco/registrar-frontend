@@ -242,3 +242,26 @@ export function updateAcademicTerm(termId, updates) {
     body: JSON.stringify(updates),
   });
 }
+// --- Degree Audit & Curriculum Requirements (v2.1) ---
+export function getMyDegreeAudit(programCode = "") {
+  const query = programCode ? `?programCode=${encodeURIComponent(programCode)}` : "";
+  return apiRequest(`/degree-audit/my-audit${query}`, { method: "GET" });
+}
+
+export function getDegreeRequirements(programCode = "") {
+  const query = programCode ? `?programCode=${encodeURIComponent(programCode)}` : "";
+  return apiRequest(`/degree-audit/requirements${query}`, { method: "GET" });
+}
+
+export function addDegreeRequirement(requirementData) {
+  return apiRequest("/degree-audit/requirements", {
+    method: "POST",
+    body: JSON.stringify(requirementData),
+  });
+}
+
+export function deleteDegreeRequirement(requirementId) {
+  return apiRequest(`/degree-audit/requirements/${requirementId}`, {
+    method: "DELETE",
+  });
+}
