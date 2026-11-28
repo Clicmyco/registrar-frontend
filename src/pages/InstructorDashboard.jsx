@@ -5,6 +5,7 @@ import {
   getCourseRoster,
   assignGrade,
 } from "../services/api";
+import BatchGradeToolbar from "../components/BatchGradeToolbar";
 
 const GRADE_OPTIONS = ["", "A", "A-", "B+", "B", "C+", "C", "D", "F"];
 
@@ -270,7 +271,7 @@ export default function InstructorDashboard({ user, navigate }) {
               </div>
             ) : (
               <>
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
                   <div>
                     <div className="text-xs font-semibold uppercase tracking-wider text-sky-600">
                       Official Section Gradebook
@@ -279,9 +280,15 @@ export default function InstructorDashboard({ user, navigate }) {
                       {selectedCourse.courseCode} — {selectedCourse.title}
                     </h3>
                   </div>
-                  <span className="px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
-                    {enrolledStudents.length} Active Students
-                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
+                      {enrolledStudents.length} Active Students
+                    </span>
+                    <BatchGradeToolbar
+                      course={selectedCourse}
+                      onGradesUpdated={() => handleSelectCourse(selectedCourse)}
+                    />
+                  </div>
                 </div>
 
                 {isLoadingRoster ? (

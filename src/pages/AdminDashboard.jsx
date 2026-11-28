@@ -13,6 +13,7 @@ import AdminGovernancePanel from "../components/AdminGovernancePanel";
 import AdvisorApprovalQueue from "../components/AdvisorApprovalQueue";
 import TermManagementPanel from "../components/TermManagementPanel";
 import CurriculumManagerPanel from "../components/CurriculumManagerPanel";
+import BatchGradeToolbar from "../components/BatchGradeToolbar";
 
 export default function AdminDashboard({ user, navigate }) {
   const [courses, setCourses] = useState([]);
@@ -690,7 +691,7 @@ export default function AdminDashboard({ user, navigate }) {
             {/* Live Class Roster Panel */}
             {selectedCourse && (
               <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
                   <div>
                     <div className="text-xs font-semibold uppercase tracking-wider text-indigo-600">
                       Live Student Roster
@@ -699,9 +700,17 @@ export default function AdminDashboard({ user, navigate }) {
                       {selectedCourse.courseCode} — {selectedCourse.title}
                     </h3>
                   </div>
-                  <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
-                    {roster.filter((r) => r.status === "ENROLLED").length} Active / {roster.length} Total
-                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
+                      {roster.filter((r) => r.status === "ENROLLED").length} Active / {roster.length} Total
+                    </span>
+                    {canAssignGrades && (
+                      <BatchGradeToolbar
+                        course={selectedCourse}
+                        onGradesUpdated={() => handleInspectRoster(selectedCourse)}
+                      />
+                    )}
+                  </div>
                 </div>
 
                 {isLoadingRoster ? (
@@ -790,7 +799,7 @@ export default function AdminDashboard({ user, navigate }) {
         {canAssignGrades && <TermManagementPanel />}
         <AdvisorApprovalQueue onDecision={loadCourses} />
         {isAdmin && <AdminGovernancePanel />}
-        {canAssignGrades && <CurriculumManagerPanel courses={courses}/>}
+        {canAssignGrades && <CurriculumManagerPanel courses={courses} />}
       </section>
     </main>
   );

@@ -265,3 +265,56 @@ export function deleteDegreeRequirement(requirementId) {
     method: "DELETE",
   });
 }
+
+// --- CSV Roster Export & Batch Grade Upload (v2.2) ---
+export async function exportCourseRosterCsv(courseId, courseCode = "course") {
+  const token = localStorage.getItem("token");
+  const response = await fetch(`${BASE_URL}/gradebook/courses/${courseId}/export-csv`, {
+    method: "GET",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Failed to export CSV (${response.status})`);
+  }
+
+  const blob = await response.blob();
+  const downloadUrl = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const safeCode = String(courseCode).replace(/[^a-zA-Z0-9_-]/g, "_");
+  link.href = downloadUrl;
+  link.download = `${safeCode}_roster.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(downloadUrl);
+}
+
+export async function uploadBatchGradesCsv(courseId, file) {
+  const token = localStorage.getItem("token");
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(`${BASE_URL}/gradebook/courses/${courseId}/batch-grades`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+
+  const contentType = response.headers.get("content-type");
+  const data =
+    contentType && contentType.includes("application/json")
+      ? await response.json()
+      : await response.text();
+
+  if (!response.ok) {
+    const errorMessage =
+      (data && typeof data === "object" && data.message) ||
+      (typeof data === "string" && data) ||
+      `Batch upload failed (${response.status})`;
+    throw new Error(errorMessage);
+  }
+
+  return data;
+}
