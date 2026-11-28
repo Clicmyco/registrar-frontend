@@ -14,6 +14,7 @@ import AdvisorApprovalQueue from "../components/AdvisorApprovalQueue";
 import TermManagementPanel from "../components/TermManagementPanel";
 import CurriculumManagerPanel from "../components/CurriculumManagerPanel";
 import BatchGradeToolbar from "../components/BatchGradeToolbar";
+import StudentHoldsManagerPanel from "../components/StudentHoldsManagerPanel";
 
 export default function AdminDashboard({ user, navigate }) {
   const [courses, setCourses] = useState([]);
@@ -798,6 +799,7 @@ export default function AdminDashboard({ user, navigate }) {
 
         {canAssignGrades && <TermManagementPanel />}
         <AdvisorApprovalQueue onDecision={loadCourses} />
+        <StudentHoldsManagerPanel />
         {isAdmin && <AdminGovernancePanel />}
         {canAssignGrades && <CurriculumManagerPanel courses={courses} />}
       </section>

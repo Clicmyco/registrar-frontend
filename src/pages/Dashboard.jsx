@@ -11,6 +11,8 @@ import {
 import OfficialTranscript from "../components/OfficialTranscript";
 import DegreeAuditPanel from "../components/DegreeAuditPanel";
 import WeeklyTimetable from "../components/WeeklyTimetable";
+import StudentHoldBanner from "../components/StudentHoldBanner";
+
 
 const gradePointsMap = {
   A: 4.0,
@@ -229,6 +231,7 @@ export default function Dashboard({ user, navigate }) {
             </div>
           )}
         </div>
+        {!isAdmin && <StudentHoldBanner />}
 
         {/* Live Feedback Banner */}
         {feedback && (
@@ -640,7 +643,8 @@ export default function Dashboard({ user, navigate }) {
               />
               
             )}
-            <DegreeAuditPanel refreshTrigger="{enrollments.length}"/>
+            <DegreeAuditPanel refreshTrigger={enrollments.length}/>
+            
           </>
         )}
       </section>

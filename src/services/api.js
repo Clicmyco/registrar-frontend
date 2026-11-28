@@ -318,3 +318,34 @@ export async function uploadBatchGradesCsv(courseId, file) {
 
   return data;
 }
+// --- Academic & Registration Holds (v2.3) ---
+export function getMyActiveHolds() {
+  return apiRequest("/holds/my-holds", { method: "GET" });
+}
+
+export function getAllActiveHolds() {
+  return apiRequest("/holds/active", { method: "GET" });
+}
+
+export function searchStudentsForHolds(query = "") {
+  const qs = query.trim() ? `?query=${encodeURIComponent(query.trim())}` : "";
+  return apiRequest(`/holds/students${qs}`, { method: "GET" });
+}
+
+export function getStudentHolds(studentId) {
+  return apiRequest(`/holds/student/${studentId}`, { method: "GET" });
+}
+
+export function placeAcademicHold(holdData) {
+  return apiRequest("/holds", {
+    method: "POST",
+    body: JSON.stringify(holdData),
+  });
+}
+
+export function liftAcademicHold(holdId, resolutionNote = "") {
+  return apiRequest(`/holds/${holdId}/lift`, {
+    method: "PATCH",
+    body: JSON.stringify({ resolutionNote }),
+  });
+}
