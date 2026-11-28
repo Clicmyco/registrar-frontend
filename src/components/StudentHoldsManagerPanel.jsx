@@ -8,6 +8,7 @@ import {
   liftAcademicHold,
   getStudentTranscriptForStaff,
   getStudentDegreeAuditForStaff,
+  downloadStudentTranscriptPdf,
 } from "../services/api";
 
 const HOLD_TYPES = ["ADVISING", "FINANCIAL", "ACADEMIC", "ADMINISTRATIVE"];
@@ -31,11 +32,12 @@ export default function StudentHoldsManagerPanel() {
   const [isLoadingHolds, setIsLoadingHolds] = useState(false);
   const [activeHoldsOverview, setActiveHoldsOverview] = useState([]);
 
-  // Transcript & Degree Audit Drawer State (v2.5)
+  // Transcript & Degree Audit Drawer State (v2.5 & v2.6)
   const [transcript, setTranscript] = useState(null);
   const [isLoadingTranscript, setIsLoadingTranscript] = useState(false);
   const [degreeAudit, setDegreeAudit] = useState(null);
   const [isLoadingAudit, setIsLoadingAudit] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
   // Place Hold Form State
   const [holdType, setHoldType] = useState("ADVISING");
@@ -98,6 +100,25 @@ export default function StudentHoldsManagerPanel() {
       });
     } finally {
       setIsLoadingTranscript(false);
+    }
+  };
+
+  const handleDownloadStudentPdf = async () => {
+    if (!selectedStudent) return;
+    setIsDownloadingPdf(true);
+    setFeedback(null);
+    try {
+      await downloadStudentTranscriptPdf(
+        selectedStudent.id,
+        selectedStudent.fullName
+      );
+    } catch (err) {
+      setFeedback({
+        type: "error",
+        text: err.message || "Could not generate student PDF transcript.",
+      });
+    } finally {
+      setIsDownloadingPdf(false);
     }
   };
 
@@ -604,8 +625,25 @@ export default function StudentHoldsManagerPanel() {
                         </div>
                         <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between">
                           <div className="text-[11px] text-slate-500">Academic Standing</div>
-                          <div className="pt-1">{renderStandingBadge(transcript.standing)}</div>
+                          <div className="pt-1">
+                            {renderStandingBadge(transcript.academicStanding)}
+                          </div>
                         </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                        <div className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                          Academic Record Summary
+                        </div>
+                        <button
+                          type="button"
+                          disabled={isDownloadingPdf}
+                          onClick={handleDownloadStudentPdf}
+                          className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold shadow-sm transition flex items-center gap-1.5"
+                        >
+                          <i className="fa-solid fa-file-pdf"></i>
+                          {isDownloadingPdf ? "Generating PDF..." : "Download Official PDF"}
+                        </button>
                       </div>
 
                       {!transcript.records || transcript.records.length === 0 ? (
@@ -625,7 +663,7 @@ export default function StudentHoldsManagerPanel() {
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-xs">
                               {transcript.records.map((rec) => (
-                                <tr key={rec.id} className="hover:bg-slate-50">
+                                <tr key={rec.enrollmentId} className="hover:bg-slate-50">
                                   <td className="py-2.5 px-3 text-slate-500 font-mono">
                                     {rec.termCode || "—"}
                                   </td>
@@ -633,7 +671,7 @@ export default function StudentHoldsManagerPanel() {
                                     <span className="font-bold text-slate-900">
                                       {rec.courseCode}
                                     </span>{" "}
-                                    <span className="text-slate-600">— {rec.title}</span>
+                                    <span className="text-slate-600">— {rec.courseTitle}</span>
                                   </td>
                                   <td className="py-2.5 px-3 text-center font-semibold text-slate-700">
                                     {rec.credits} Cr

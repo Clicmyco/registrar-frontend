@@ -7,6 +7,7 @@ import {
   dropCourse,
   getActiveTerm,
   getAllTerms,
+  downloadMyTranscriptPdf,
 } from "../services/api";
 import OfficialTranscript from "../components/OfficialTranscript";
 import DegreeAuditPanel from "../components/DegreeAuditPanel";
@@ -41,6 +42,8 @@ export default function Dashboard({ user, navigate }) {
   const [selectedTermId, setSelectedTermId] = useState("");
   const [simulatedGrades, setSimulatedGrades] = useState({});
   const [showTranscript, setShowTranscript] = useState(false);
+
+ const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState(null);
@@ -109,6 +112,21 @@ export default function Dashboard({ user, navigate }) {
   const updateCourseGrade = (courseId, newGrade) => {
     setSimulatedGrades((prev) => ({ ...prev, [courseId]: newGrade }));
   };
+
+  const handleDownloadPdf = async () => {
+  setFeedback(null);
+  setIsDownloadingPdf(true);
+  try {
+    await downloadMyTranscriptPdf();
+  } catch (err) {
+    setFeedback({
+      type: "error",
+      text: err.message || "Failed to download official PDF transcript.",
+    });
+  } finally {
+    setIsDownloadingPdf(false);
+  }
+};
 
   // --- GUARD: Prompt guests to sign in ---
   if (!user) {
@@ -221,6 +239,15 @@ export default function Dashboard({ user, navigate }) {
                 <div className="text-xs text-slate-500">Simulated Term GPA</div>
                 <div className="text-lg font-extrabold text-emerald-700">{simulatedGpa}</div>
               </div>
+              <button
+                type="button"
+                disabled={isDownloadingPdf}
+                onClick={handleDownloadPdf}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 disabled:opacity-50 text-white text-xs font-semibold transition shadow-sm self-center"
+              >
+                <i className="fa-solid fa-file-pdf mr-1.5"></i>
+                {isDownloadingPdf ? "Generating PDF..." : "Download PDF"}
+              </button> 
               <button
                 onClick={() => setShowTranscript((prev) => !prev)}
                 className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition shadow-sm self-center"

@@ -361,3 +361,50 @@ export function getStudentDegreeAuditForStaff(studentId, programCode = "") {
     : "";
   return apiRequest(`/degree-audit/student/${studentId}${qs}`, { method: "GET" });
 }
+
+// --- Official PDF Transcript Downloads (v2.6) ---
+async function downloadPdfEndpoint(endpoint, fallbackFilename) {
+  const rawBase = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
+  const apiBase = rawBase.endsWith("/api") ? rawBase : `${rawBase}/api`;
+  const token = localStorage.getItem("token");
+
+  const response = await fetch(`${apiBase}${endpoint}`, {
+    method: "GET",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+
+  if (!response.ok) {
+    let message = "Failed to download official PDF transcript.";
+    try {
+      const errData = await response.json();
+      if (errData?.message) message = errData.message;
+    } catch {
+      // Ignore non-JSON error body
+    }
+    throw new Error(message);
+  }
+
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fallbackFilename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}
+
+export function downloadMyTranscriptPdf() {
+  return downloadPdfEndpoint("/transcripts/my-pdf", "Official_Transcript.pdf");
+}
+
+export function downloadStudentTranscriptPdf(studentId, studentName = "") {
+  const safeName = studentName
+    ? studentName.trim().replace(/\s+/g, "_")
+    : `Student_${studentId}`;
+  return downloadPdfEndpoint(
+    `/transcripts/student/${studentId}/pdf`,
+    `Official_Transcript_${safeName}.pdf`
+  );
+}
