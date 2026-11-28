@@ -15,10 +15,12 @@ import TermManagementPanel from "../components/TermManagementPanel";
 import CurriculumManagerPanel from "../components/CurriculumManagerPanel";
 import BatchGradeToolbar from "../components/BatchGradeToolbar";
 import StudentHoldsManagerPanel from "../components/StudentHoldsManagerPanel";
+import RegistrarAnalyticsPanel from "../components/RegistrarAnalyticsPanel";
 
 export default function AdminDashboard({ user, navigate }) {
   const [courses, setCourses] = useState([]);
   const [isLoadingCourses, setIsLoadingCourses] = useState(false);
+  const [analyticsRefreshKey, setAnalyticsRefreshKey] = useState(0);
 
   // Create Course Form State
   const [courseCode, setCourseCode] = useState("");
@@ -88,6 +90,7 @@ export default function AdminDashboard({ user, navigate }) {
       setInstructors(
         safeUsers.filter((u) => u.active && u.roles?.includes("ROLE_INSTRUCTOR"))
       );
+      setAnalyticsRefreshKey((k) => k + 1);
     } catch (err) {
       setFeedback({ type: "error", text: err.message || "Failed to load course catalog." });
     } finally {
@@ -100,6 +103,11 @@ export default function AdminDashboard({ user, navigate }) {
       loadCourses();
     }
   }, [user]);
+
+  const handleTermFilterChange = (nextTermId) => {
+    setFilterTermId(nextTermId);
+    loadCourses(nextTermId);
+  };
 
   const handleCreateCourse = async (e) => {
     e.preventDefault();
@@ -208,6 +216,7 @@ export default function AdminDashboard({ user, navigate }) {
             : entry
         )
       );
+      setAnalyticsRefreshKey((k) => k + 1);
       setFeedback({
         type: "success",
         text: newGrade
@@ -316,6 +325,14 @@ export default function AdminDashboard({ user, navigate }) {
             </button>
           </div>
         )}
+
+        {/* Live Registrar Operations & Academic Analytics (v2.9) */}
+        <RegistrarAnalyticsPanel
+          selectedTermId={filterTermId}
+          terms={terms}
+          onSelectTerm={handleTermFilterChange}
+          refreshTrigger={analyticsRefreshKey}
+        />
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
@@ -548,10 +565,7 @@ export default function AdminDashboard({ user, navigate }) {
                 <div className="flex items-center gap-2">
                   <select
                     value={filterTermId}
-                    onChange={(e) => {
-                      setFilterTermId(e.target.value);
-                      loadCourses(e.target.value);
-                    }}
+                    onChange={(e) => handleTermFilterChange(e.target.value)}
                     className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 bg-white"
                   >
                     <option value="">All Terms</option>
@@ -708,7 +722,10 @@ export default function AdminDashboard({ user, navigate }) {
                     {canAssignGrades && (
                       <BatchGradeToolbar
                         course={selectedCourse}
-                        onGradesUpdated={() => handleInspectRoster(selectedCourse)}
+                        onGradesUpdated={() => {
+                          handleInspectRoster(selectedCourse);
+                          setAnalyticsRefreshKey((k) => k + 1);
+                        }}
                       />
                     )}
                   </div>

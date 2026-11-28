@@ -535,3 +535,8 @@ export function confirmPasswordReset({ email, code, newPassword }) {
     body: JSON.stringify({ email, code, newPassword }),
   });
 }
+// --- Registrar Analytics (v2.9) ---
+export function getRegistrarAnalytics(termId = null) {
+  const query = termId ? `?termId=${encodeURIComponent(termId)}` : "";
+  return authJsonRequest(`/admin/analytics${query}`, { method: "GET" });
+}
