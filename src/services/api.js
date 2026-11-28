@@ -408,3 +408,53 @@ export function downloadStudentTranscriptPdf(studentId, studentName = "") {
     `Official_Transcript_${safeName}.pdf`
   );
 }
+// --- In-App Notifications (v2.7) ---
+function getNormalizedApiBase() {
+  const rawBase = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
+  return rawBase.endsWith("/api") ? rawBase : `${rawBase}/api`;
+}
+
+async function notificationRequest(endpoint, options = {}) {
+  const token = localStorage.getItem("token");
+  const response = await fetch(`${getNormalizedApiBase()}${endpoint}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {}),
+    },
+  });
+
+  if (!response.ok) {
+    let message = "Notification request failed.";
+    try {
+      const errData = await response.json();
+      if (errData?.message) message = errData.message;
+    } catch {
+      // Ignore non-JSON error body
+    }
+    throw new Error(message);
+  }
+
+  return response.json();
+}
+
+export function getMyNotifications() {
+  return notificationRequest("/notifications", { method: "GET" });
+}
+
+export function getUnreadNotificationCount() {
+  return notificationRequest("/notifications/unread-count", { method: "GET" });
+}
+
+export function markNotificationAsRead(notificationId) {
+  return notificationRequest(`/notifications/${notificationId}/read`, {
+    method: "PATCH",
+  });
+}
+
+export function markAllNotificationsAsRead() {
+  return notificationRequest("/notifications/read-all", {
+    method: "PATCH",
+  });
+}

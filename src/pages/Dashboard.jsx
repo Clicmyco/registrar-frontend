@@ -13,7 +13,7 @@ import OfficialTranscript from "../components/OfficialTranscript";
 import DegreeAuditPanel from "../components/DegreeAuditPanel";
 import WeeklyTimetable from "../components/WeeklyTimetable";
 import StudentHoldBanner from "../components/StudentHoldBanner";
-
+import NotificationBell from "../components/NotificationBell";
 
 const gradePointsMap = {
   A: 4.0,
@@ -257,6 +257,7 @@ export default function Dashboard({ user, navigate }) {
               </button>
             </div>
           )}
+          <NotificationBell />
         </div>
         {!isAdmin && <StudentHoldBanner />}
 
