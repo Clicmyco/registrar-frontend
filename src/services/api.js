@@ -349,3 +349,15 @@ export function liftAcademicHold(holdId, resolutionNote = "") {
     body: JSON.stringify({ resolutionNote }),
   });
 }
+
+// --- Staff Student Transcript & Degree Audit Lookup (v2.5) ---
+export function getStudentTranscriptForStaff(studentId) {
+  return apiRequest(`/holds/student/${studentId}/transcript`, { method: "GET" });
+}
+
+export function getStudentDegreeAuditForStaff(studentId, programCode = "") {
+  const qs = programCode.trim()
+    ? `?programCode=${encodeURIComponent(programCode.trim())}`
+    : "";
+  return apiRequest(`/degree-audit/student/${studentId}${qs}`, { method: "GET" });
+}
