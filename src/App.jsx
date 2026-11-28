@@ -83,6 +83,7 @@ export default function App() {
         currentView={currentView}
         user={user}
         onLogout={handleLogout}
+        onUserUpdated={setUser}
       />
       {renderView()}
       <Footer navigate={setCurrentView} />

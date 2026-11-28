@@ -14,6 +14,9 @@ import DegreeAuditPanel from "../components/DegreeAuditPanel";
 import WeeklyTimetable from "../components/WeeklyTimetable";
 import StudentHoldBanner from "../components/StudentHoldBanner";
 import NotificationBell from "../components/NotificationBell";
+import GpaSimulatorPanel from "../components/GpaSimulatorPanel";
+import CreditStandingMeter from "../components/CreditStandingMeter";
+import RegistrationWaitlistTracker from "../components/RegistrationWaitlistTracker";
 
 const gradePointsMap = {
   A: 4.0,
@@ -40,11 +43,14 @@ export default function Dashboard({ user, navigate }) {
   const [activeTerm, setActiveTerm] = useState(null);
   const [terms, setTerms] = useState([]);
   const [selectedTermId, setSelectedTermId] = useState("");
-  const [simulatedGrades, setSimulatedGrades] = useState({});
   const [showTranscript, setShowTranscript] = useState(false);
 
- const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  // GPA Simulator State
+  const [simulatedGrades, setSimulatedGrades] = useState({});
+  const [simScope, setSimScope] = useState("TERM"); // "TERM" | "CUMULATIVE"
+  const [includePending, setIncludePending] = useState(false);
 
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [feedback, setFeedback] = useState(null);
@@ -114,19 +120,19 @@ export default function Dashboard({ user, navigate }) {
   };
 
   const handleDownloadPdf = async () => {
-  setFeedback(null);
-  setIsDownloadingPdf(true);
-  try {
-    await downloadMyTranscriptPdf();
-  } catch (err) {
-    setFeedback({
-      type: "error",
-      text: err.message || "Failed to download official PDF transcript.",
-    });
-  } finally {
-    setIsDownloadingPdf(false);
-  }
-};
+    setFeedback(null);
+    setIsDownloadingPdf(true);
+    try {
+      await downloadMyTranscriptPdf();
+    } catch (err) {
+      setFeedback({
+        type: "error",
+        text: err.message || "Failed to download official PDF transcript.",
+      });
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
 
   // --- GUARD: Prompt guests to sign in ---
   if (!user) {
@@ -151,18 +157,20 @@ export default function Dashboard({ user, navigate }) {
     );
   }
 
-  // --- MATH CALCULATIONS (Official + Simulated GPA) ---
+  // --- MATH CALCULATIONS (Official + Scoped Simulated GPA) ---
   const activeEnrollments = enrollments.filter((e) => e.status === "ENROLLED");
   const viewedTerm =
     terms.find((t) => String(t.id) === String(selectedTermId)) || activeTerm;
 
-  const termActiveEnrollments = activeEnrollments.filter((e) => {
+  const matchesViewedTerm = (e) => {
     if (!viewedTerm || !e.termCode) return true;
     return e.termCode === viewedTerm.code;
-  });
-  const termCredits = termActiveEnrollments.reduce((sum, item) => sum + item.credits, 0);
-  const totalCredits = activeEnrollments.reduce((sum, item) => sum + item.credits, 0);
+  };
 
+  const termActiveEnrollments = activeEnrollments.filter(matchesViewedTerm);
+  const termCredits = termActiveEnrollments.reduce((sum, item) => sum + item.credits, 0);
+
+  // Overall Official Cumulative GPA
   const gradedEnrollments = activeEnrollments.filter(
     (item) => item.grade && gradePointsMap[item.grade] !== undefined
   );
@@ -171,21 +179,72 @@ export default function Dashboard({ user, navigate }) {
     (sum, item) => sum + gradePointsMap[item.grade] * item.credits,
     0
   );
+  const officialGpaNumeric =
+    gradedCredits > 0 ? officialQualityPoints / gradedCredits : null;
   const officialGpa =
-    gradedCredits > 0 ? (officialQualityPoints / gradedCredits).toFixed(2) : "—";
+    officialGpaNumeric !== null ? officialGpaNumeric.toFixed(2) : "—";
 
-  let totalQualityPoints = 0;
-  activeEnrollments.forEach((item) => {
+  // Scoped Enrollments for Simulator (Term vs Cumulative + Optional Pending)
+  const scopedEnrolled =
+    simScope === "TERM" ? termActiveEnrollments : activeEnrollments;
+  const scopedPending = enrollments.filter(
+    (e) =>
+      e.status === "PENDING_APPROVAL" &&
+      (simScope === "CUMULATIVE" || matchesViewedTerm(e))
+  );
+  const coursesInSimScope = includePending
+    ? [...scopedEnrolled, ...scopedPending]
+    : scopedEnrolled;
+
+  const scopeGraded = scopedEnrolled.filter(
+    (item) => item.grade && gradePointsMap[item.grade] !== undefined
+  );
+  const scopeGradedCredits = scopeGraded.reduce((sum, item) => sum + item.credits, 0);
+  const scopeOfficialQp = scopeGraded.reduce(
+    (sum, item) => sum + gradePointsMap[item.grade] * item.credits,
+    0
+  );
+  const scopeOfficialGpa =
+    scopeGradedCredits > 0 ? scopeOfficialQp / scopeGradedCredits : null;
+
+  let simTotalCredits = 0;
+  let simTotalQualityPoints = 0;
+  coursesInSimScope.forEach((item) => {
     const effectiveGrade =
       item.grade && gradePointsMap[item.grade] !== undefined
         ? item.grade
         : simulatedGrades[item.courseId] || "A";
     const gp = gradePointsMap[effectiveGrade] ?? 0;
-    totalQualityPoints += gp * item.credits;
+    simTotalCredits += item.credits;
+    simTotalQualityPoints += gp * item.credits;
   });
 
   const simulatedGpa =
-    totalCredits > 0 ? (totalQualityPoints / totalCredits).toFixed(2) : "0.00";
+    simTotalCredits > 0
+      ? (simTotalQualityPoints / simTotalCredits).toFixed(2)
+      : "0.00";
+
+  const simDelta =
+    scopeOfficialGpa !== null && simTotalCredits > 0
+      ? Number((parseFloat(simulatedGpa) - scopeOfficialGpa).toFixed(2))
+      : null;
+
+  const handleApplyPreset = (presetGrade) => {
+    setSimulatedGrades((prev) => {
+      const next = { ...prev };
+      coursesInSimScope.forEach((item) => {
+        const isLocked = item.grade && gradePointsMap[item.grade] !== undefined;
+        if (!isLocked) {
+          next[item.courseId] = presetGrade;
+        }
+      });
+      return next;
+    });
+  };
+
+  const handleResetGrades = () => {
+    setSimulatedGrades({});
+  };
 
   const displayName = user.fullName || user.email;
   const nameParts = displayName.trim().split(/\s+/);
@@ -199,16 +258,18 @@ export default function Dashboard({ user, navigate }) {
       <section className="space-y-6">
 
         {/* Profile Summary Header */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-bold text-xl">
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="w-12 h-12 shrink-0 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-bold text-lg">
               {initials}
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-slate-900">{displayName}</h2>
+                <h2 className="text-base font-bold text-slate-900 truncate">
+                  {displayName}
+                </h2>
                 <span
-                  className={`px-2 py-0.5 text-xs font-semibold rounded ${
+                  className={`px-2 py-0.5 text-xs font-semibold rounded whitespace-nowrap shrink-0 ${
                     isAdmin
                       ? "bg-amber-100 text-amber-800"
                       : "bg-emerald-100 text-emerald-800"
@@ -217,48 +278,77 @@ export default function Dashboard({ user, navigate }) {
                   {isAdmin ? "Registrar Admin" : "Active Student"}
                 </span>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-xs text-slate-500 mt-0.5 truncate">
                 {user.email} • B.Sc. Computer Science
               </p>
             </div>
           </div>
 
-          {!isAdmin && (
-            <div className="flex flex-wrap gap-3 border-t md:border-t-0 pt-3 md:pt-0 border-slate-100">
-              <div className="bg-slate-50 px-4 py-2 rounded-xl border border-slate-200">
-                <div className="text-xs text-slate-500">Enrolled Credits</div>
-                <div className="text-lg font-extrabold text-indigo-700">
-                  {termCredits} / 19 Cr
+          <div className="flex flex-wrap lg:flex-nowrap items-center gap-2.5 border-t lg:border-t-0 pt-3 lg:pt-0 border-slate-100 shrink-0">
+            {!isAdmin && (
+              <>
+                <div className="bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 whitespace-nowrap">
+                  <div className="text-[11px] text-slate-500">Enrolled Credits</div>
+                  <div className="text-base font-extrabold text-indigo-700">
+                    {termCredits} / 19 Cr
+                  </div>
                 </div>
-              </div>
-              <div className="bg-indigo-50/70 px-4 py-2 rounded-xl border border-indigo-200">
-                <div className="text-xs text-indigo-700 font-medium">Official GPA</div>
-                <div className="text-lg font-extrabold text-indigo-900">{officialGpa}</div>
-              </div>
-              <div className="bg-slate-50 px-4 py-2 rounded-xl border border-slate-200">
-                <div className="text-xs text-slate-500">Simulated Term GPA</div>
-                <div className="text-lg font-extrabold text-emerald-700">{simulatedGpa}</div>
-              </div>
-              <button
-                type="button"
-                disabled={isDownloadingPdf}
-                onClick={handleDownloadPdf}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 disabled:opacity-50 text-white text-xs font-semibold transition shadow-sm self-center"
-              >
-                <i className="fa-solid fa-file-pdf mr-1.5"></i>
-                {isDownloadingPdf ? "Generating PDF..." : "Download PDF"}
-              </button> 
-              <button
-                onClick={() => setShowTranscript((prev) => !prev)}
-                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition shadow-sm self-center"
-              >
-                <i className="fa-solid fa-file-lines mr-1.5"></i>
-                {showTranscript ? "Course Registration" : "Official Transcript"}
-              </button>
+
+                <div className="bg-indigo-50/70 px-3 py-1.5 rounded-xl border border-indigo-200 whitespace-nowrap">
+                  <div className="text-[11px] text-indigo-700 font-medium">Official GPA</div>
+                  <div className="text-base font-extrabold text-indigo-900">{officialGpa}</div>
+                </div>
+
+                <div className="bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 whitespace-nowrap">
+                  <div className="text-[11px] text-slate-500">
+                    {simScope === "TERM" ? "Simulated Term GPA" : "Simulated Cumul. GPA"}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-base font-extrabold text-emerald-700">
+                      {simulatedGpa}
+                    </span>
+                    {simDelta !== null && simDelta !== 0 && (
+                      <span
+                        className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                          simDelta > 0
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-rose-100 text-rose-800"
+                        }`}
+                      >
+                        {simDelta > 0 ? `+${simDelta.toFixed(2)}` : simDelta.toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div className="flex items-center gap-2 shrink-0">
+              {!isAdmin && (
+                <>
+                  <button
+                    type="button"
+                    disabled={isDownloadingPdf}
+                    onClick={handleDownloadPdf}
+                    className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 disabled:opacity-50 text-white text-xs font-semibold transition shadow-sm whitespace-nowrap"
+                  >
+                    <i className="fa-solid fa-file-pdf mr-1.5"></i>
+                    {isDownloadingPdf ? "Generating PDF..." : "Download PDF"}
+                  </button>
+                  <button
+                    onClick={() => setShowTranscript((prev) => !prev)}
+                    className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition shadow-sm whitespace-nowrap"
+                  >
+                    <i className="fa-solid fa-file-lines mr-1.5"></i>
+                    {showTranscript ? "Course Registration" : "Official Transcript"}
+                  </button>
+                </>
+              )}
+              <NotificationBell />
             </div>
-          )}
-          <NotificationBell />
+          </div>
         </div>
+
         {!isAdmin && <StudentHoldBanner />}
 
         {/* Live Feedback Banner */}
@@ -312,15 +402,19 @@ export default function Dashboard({ user, navigate }) {
           </div>
         )}
 
-        {/* Main Workspace: Official Transcript OR Registration + GPA Simulator + Weekly Timetable */}
+        {/* Main Workspace: Official Transcript OR Registration + Right Column Stack + Timetable */}
         {showTranscript && !isAdmin ? (
           <OfficialTranscript onBack={() => setShowTranscript(false)} />
         ) : (
           <>
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
-              {/* Course Catalog & Registration Table (7 Columns) */}
-              <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+              {/* Course Catalog & Registration Table (7 Columns for Students, 12 for Admin) */}
+              <div
+                className={`${
+                  isAdmin ? "lg:col-span-12" : "lg:col-span-7"
+                } bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4`}
+              >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h3 className="text-base font-bold text-slate-900">
@@ -412,11 +506,11 @@ export default function Dashboard({ user, navigate }) {
                                     </span>
                                   )}
                                   {(course.instructorName || course.instructorEmail) && (
-                                 <span className="inline-block px-2 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200 text-[11px] font-medium">
-                                  <i className="fa-solid fa-chalkboard-user mr-1"></i>
+                                    <span className="inline-block px-2 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200 text-[11px] font-medium">
+                                      <i className="fa-solid fa-chalkboard-user mr-1"></i>
                                       {course.instructorName || course.instructorEmail}
-                                  </span>
-                                     )}
+                                    </span>
+                                  )}
                                 </div>
                                 {enrollment?.advisorNote && (
                                   <p className="text-xs font-normal text-slate-500 mt-0.5">
@@ -571,93 +665,48 @@ export default function Dashboard({ user, navigate }) {
                 )}
               </div>
 
-              {/* Official Grades & Interactive GPA Simulator Panel (5 Columns) */}
-              <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4 flex flex-col justify-between">
-                <div>
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900">
-                      Official Grades &amp; GPA Simulator
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      Official Registrar grades lock in automatically; adjust in-progress courses to project your term GPA
-                    </p>
-                  </div>
+              {/* Right Column: GPA Simulator + Credit Meter + Registration & Waitlist Tracker (5 Columns) */}
+              {!isAdmin && (
+                <div className="lg:col-span-5 space-y-6">
+                  <GpaSimulatorPanel
+                    coursesInScope={coursesInSimScope}
+                    gradePointsMap={gradePointsMap}
+                    simulatedGrades={simulatedGrades}
+                    onUpdateGrade={updateCourseGrade}
+                    onApplyPreset={handleApplyPreset}
+                    onResetGrades={handleResetGrades}
+                    simScope={simScope}
+                    onChangeScope={setSimScope}
+                    viewedTermName={viewedTerm?.name}
+                    includePending={includePending}
+                    onToggleIncludePending={setIncludePending}
+                    pendingCountInScope={scopedPending.length}
+                    scopeOfficialGpa={scopeOfficialGpa}
+                    scopeGradedCredits={scopeGradedCredits}
+                    simulatedGpa={simulatedGpa}
+                    simTotalCredits={simTotalCredits}
+                    simTotalQualityPoints={simTotalQualityPoints}
+                  />
 
-                  <div className="space-y-3 mt-4">
-                    {activeEnrollments.length === 0 ? (
-                      <div className="p-4 rounded-xl bg-slate-50 text-xs text-slate-500 text-center">
-                        No active enrolled courses. Enroll in a course on the left to track grades.
-                      </div>
-                    ) : (
-                      activeEnrollments.map((item) => {
-                        const hasOfficialGrade =
-                          item.grade && gradePointsMap[item.grade] !== undefined;
-                        const currentGrade = hasOfficialGrade
-                          ? item.grade
-                          : simulatedGrades[item.courseId] || "A";
+                  <CreditStandingMeter
+                    enrollments={enrollments}
+                    activeEnrollments={activeEnrollments}
+                    viewedTerm={viewedTerm}
+                    coursesInSimScope={coursesInSimScope}
+                    simulatedGrades={simulatedGrades}
+                    gradePointsMap={gradePointsMap}
+                    simScope={simScope}
+                  />
 
-                        return (
-                          <div
-                            key={item.enrollmentId}
-                            className={`p-3 rounded-xl border flex items-center justify-between gap-2 ${
-                              hasOfficialGrade
-                                ? "bg-indigo-50/50 border-indigo-200"
-                                : "bg-slate-50 border-slate-200"
-                            }`}
-                          >
-                            <div>
-                              <div className="text-xs font-bold text-slate-800">
-                                {item.courseCode} — {item.courseTitle}
-                              </div>
-                              <div className="text-xs text-slate-500">
-                                {item.credits} Credit Hours •{" "}
-                                {hasOfficialGrade ? (
-                                  <span className="text-indigo-700 font-semibold">Official</span>
-                                ) : (
-                                  <span>Simulated</span>
-                                )}
-                              </div>
-                            </div>
-
-                            {hasOfficialGrade ? (
-                              <span className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-xs font-bold">
-                                {item.grade} ({gradePointsMap[item.grade].toFixed(2)})
-                              </span>
-                            ) : (
-                              <select
-                                value={currentGrade}
-                                onChange={(e) => updateCourseGrade(item.courseId, e.target.value)}
-                                className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-indigo-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                              >
-                                {Object.keys(gradePointsMap).map((gradeLetter) => (
-                                  <option key={gradeLetter} value={gradeLetter}>
-                                    {gradeLetter} ({gradePointsMap[gradeLetter].toFixed(2)})
-                                  </option>
-                                ))}
-                              </select>
-                            )}
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
+                  <RegistrationWaitlistTracker
+                    enrollments={enrollments}
+                    courses={courses}
+                    actionLoadingId={actionLoadingId}
+                    onDrop={handleDrop}
+                    onEnroll={handleEnroll}
+                  />
                 </div>
-
-                <div className="pt-3 mt-4 border-t border-slate-200 space-y-1.5 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-slate-600">Official Quality Points:</span>
-                    <span className="font-bold text-indigo-900">
-                      {officialQualityPoints.toFixed(2)} pts ({gradedCredits} Cr)
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-slate-600">Projected Quality Points:</span>
-                    <span className="font-bold text-slate-900">
-                      {totalQualityPoints.toFixed(2)} pts ({totalCredits} Cr)
-                    </span>
-                  </div>
-                </div>
-              </div>
+              )}
 
             </div>
 
@@ -669,10 +718,9 @@ export default function Dashboard({ user, navigate }) {
                 })}
                 termLabel={selectedTermId ? viewedTerm?.name : activeTerm?.name}
               />
-              
             )}
-            <DegreeAuditPanel refreshTrigger={enrollments.length}/>
-            
+
+            <DegreeAuditPanel refreshTrigger={enrollments.length} />
           </>
         )}
       </section>

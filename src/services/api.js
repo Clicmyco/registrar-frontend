@@ -458,3 +458,80 @@ export function markAllNotificationsAsRead() {
     method: "PATCH",
   });
 }
+
+// --- User Profile & Password Management (v2.8) ---
+async function authJsonRequest(endpoint, options = {}) {
+  const rawBase = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
+  const apiBase = rawBase.endsWith("/api") ? rawBase : `${rawBase}/api`;
+  const token = localStorage.getItem("token");
+
+  const response = await fetch(`${apiBase}${endpoint}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {}),
+    },
+  });
+
+  const rawText = await response.text();
+  let parsed = null;
+  if (rawText) {
+    try {
+      parsed = JSON.parse(rawText);
+    } catch {
+      parsed = rawText;
+    }
+  }
+
+  if (!response.ok) {
+    const message =
+      (parsed && typeof parsed === "object" && parsed.message) ||
+      (typeof parsed === "string" && parsed.trim()) ||
+      "Request failed.";
+    throw new Error(message);
+  }
+
+  return parsed;
+}
+
+export function getMyProfile() {
+  return authJsonRequest("/auth/me", { method: "GET" });
+}
+
+export async function updateMyProfile({ firstName, middleName, lastName }) {
+  const data = await authJsonRequest("/auth/profile", {
+    method: "PUT",
+    body: JSON.stringify({ firstName, middleName, lastName }),
+  });
+
+  if (data?.token) {
+    localStorage.setItem("token", data.token);
+  }
+
+  return {
+    profile: data,
+    user: getStoredUser(),
+  };
+}
+
+export function changeMyPassword({ currentPassword, newPassword }) {
+  return authJsonRequest("/auth/change-password", {
+    method: "PUT",
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+}
+
+export function requestPasswordResetCode(email) {
+  return authJsonRequest("/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function confirmPasswordReset({ email, code, newPassword }) {
+  return authJsonRequest("/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify({ email, code, newPassword }),
+  });
+}
